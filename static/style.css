@@ -1,0 +1,148 @@
+/* --- Globale Stile --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f0f2f5;
+    color: #1c1e21;
+    margin: 0;
+    padding: 20px;
+}
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+}
+h1 { color: #8a43f7; }
+h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
+
+/* --- NEU: Header mit Logout --- */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #f0f2f5;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+.header h1 {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+.logout-btn {
+    background-color: #f0f2f5;
+    color: #333;
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+.logout-btn:hover {
+    background-color: #e4e6eb;
+}
+
+/* --- Playlist URL --- */
+.playlist-url input {
+    width: calc(100% - 20px);
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+    font-family: monospace;
+}
+
+/* --- NEU: Login/Setup Container --- */
+.login-container {
+    max-width: 400px;
+    text-align: center;
+    margin-top: 50px;
+}
+.login-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.login-container input[type="password"] {
+    padding: 12px;
+    border: 1px solid #ccd0d5;
+    border-radius: 6px;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box; /* Wichtig für 100% Breite inkl. Padding */
+}
+.login-container button {
+    padding: 12px 15px;
+    font-size: 16px;
+    background-color: #8a43f7;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.login-container button:hover {
+    background-color: #7b3dcf;
+}
+
+/* --- NEU: Flash-Nachrichten (Fehler/Erfolg) --- */
+.flash-error {
+    background-color: #ffebe9;
+    color: #c9302c;
+    padding: 10px;
+    border-radius: 6px;
+}
+.flash-success {
+    background-color: #e6ffed;
+    color: #2b7d3d;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+/* --- Kanal-Formular (Hauptseite) --- */
+.form-container { margin-bottom: 20px; }
+#add-channel-form { display: flex; }
+#channel-name {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ccd0d5;
+    border-radius: 6px;
+    font-size: 16px;
+}
+#add-channel-form button {
+    padding: 10px 15px;
+    margin-left: 10px;
+    font-size: 16px;
+    background-color: #8a43f7;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#add-channel-form button:hover { background-color: #7b3dcf; }
+
+/* --- Kanalliste (Hauptseite) --- */
+ul#channels { list-style-type: none; padding: 0; }
+ul#channels li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-radius: 6px;
+}
+ul#channels li:nth-child(odd) { background-color: #f7f8fa; }
+ul#channels li span { font-size: 1.1em; }
+ul#channels li button {
+    background-color: #fa3e3e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+ul#channels li button:hover { background-color: #e03030; }
+.error { color: #fa3e3e; }

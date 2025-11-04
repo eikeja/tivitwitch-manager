@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TiviTwitch Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>TiviTwitch Manager</h1>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Ausloggen</a>
+        </div>
+        
+        <div class="playlist-url">
+            <strong>TiviMate M3U URL:</strong>
+            <input type="text" id="playlist-url-display" value="Lade..." readonly>
+        </div>
+
+        <div class="form-container">
+            <h3>Neuen Kanal hinzufügen</h3>
+            <form id="add-channel-form">
+                <input type="text" id="channel-name" placeholder="Twitch-Kanalname (z.B. 'gronkh')" required>
+                <button type="submit">Hinzufügen</button>
+            </form>
+            <p id="error-message" class="error"></p>
+        </div>
+
+        <div class="channel-list">
+            <h3>Verwaltete Kanäle</h3>
+            <ul id="channels">
+                <li>Lade...</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
