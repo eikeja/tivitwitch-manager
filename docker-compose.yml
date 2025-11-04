@@ -5,7 +5,6 @@ services:
     # Sagt Portainer/Docker, dass er den Ordner bauen soll
     build: .
     # Name des Images, das gebaut wird
-    image: tivitwitch-manager:latest 
     container_name: tivitwitch-manager
     restart: unless-stopped
     ports:
