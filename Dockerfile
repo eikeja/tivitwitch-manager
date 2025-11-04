@@ -1,10 +1,7 @@
 # --- Basis-Image ---
-# Wir nehmen ein schlankes Debian 13 (Trixie), das Python 3.11+ enthält
 FROM python:3.11-slim-trixie
 
 # --- System-Abhängigkeiten ---
-# Wir brauchen 'streamlink' (für die Twitch-Logik)
-# und 'supervisor' (unser Prozess-Manager)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     streamlink \
@@ -15,26 +12,28 @@ RUN apt-get update && \
 WORKDIR /app
 COPY requirements.txt .
 
-# Installiere Python-Pakete (Flask, Gunicorn, gevent, streamlink-Lib)
+# Installiere Python-Pakete
 RUN pip install --no-cache-dir -r requirements.txt
 
 # --- App-Code kopieren ---
-# Wir kopieren alles aus unserem Ordner in das /app Verzeichnis im Container
 COPY . .
 
-# --- Volumes ---
-# Wir definieren einen Mount-Punkt für die persistenten Daten
+# --- VOLUMEN (Bleibt gleich) ---
 VOLUME /data
 
-# --- Initialisierung ---
-# Führe das DB-Init-Skript beim Bauen aus, um sicherzustellen, dass die Tabellen existieren
-# (Es wird auf die /data/channels.db zugreifen, sobald der Container läuft)
-RUN python3 init_db.py
-
-# --- Ports ---
-# Gunicorn wird (intern) auf Port 8000 laufen
+# --- PORTS (Bleibt gleich) ---
 EXPOSE 8000
 
-# --- Start-Befehl ---
-# Starte 'supervisord', der sich um alles andere kümmert
-CMD ["/usr/bin/supervisord", "-c", "/app/supervisord.conf"]
+# --- ENTFERNT (DER FEHLER) ---
+# RUN python3 init_db.py
+
+# --- NEU: Entrypoint hinzufügen ---
+# Kopiere das neue Skript und mache es ausführbar
+COPY entrypoint.sh .
+RUN chmod +x /app/entrypoint.sh
+
+# --- START-BEFEHL ---
+# Starte das Entrypoint-Skript, das sich um alles kümmert
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# (Das alte CMD-Kommando wird jetzt vom Entrypoint-Skript aufgerufen)
