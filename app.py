@@ -144,7 +144,7 @@ def delete_channel(channel_id):
 def get_playlist():
     # Wir lesen einfach die statische Datei, die der Poller erstellt
     try:
-        with open('/data/playlist.m3u', 'r') as f:
+        with open('/tmp/playlist.m3u', 'r') as f: # <--- HIER IST DER FIX
             content = f.read()
         return Response(content, mimetype='application/vnd.apple.mpegurl')
     except FileNotFoundError:

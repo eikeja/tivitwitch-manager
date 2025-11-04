@@ -10,7 +10,7 @@ import os
 
 # --- NEU: Dynamische Pfade aus Umgebungsvariablen ---
 DB_PATH = '/data/channels.db'
-OUTPUT_M3U_FILE = '/data/playlist.m3u'
+OUTPUT_M3U_FILE = '/tmp/playlist.m3u'
 # HOST_URL MUSS als Environment Variable gesetzt werden
 HOST_URL = os.environ.get('HOST_URL')
 if not HOST_URL:
