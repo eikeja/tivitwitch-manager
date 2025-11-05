@@ -3,3 +3,4 @@ gunicorn
 gevent
 streamlink
 werkzeug
+requests

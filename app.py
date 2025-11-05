@@ -28,7 +28,7 @@ def get_password_hash():
     conn.close()
     return row['value'] if row else None
 
-# --- Login & Setup Routes ---
+# --- Login & Setup Routes (All translated to English) ---
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
     if get_password_hash():
@@ -75,7 +75,7 @@ def check_auth():
     if request.path.startswith('/play/') or request.path.startswith('/static/'):
         return
         
-    # Public endpoint for the M3U playlist (handled by Nginx, but we allow /static/)
+    # Public endpoint for the M3U playlist (handled by Nginx)
     # The login/setup routes must also be public
     if request.endpoint in ['login', 'setup']:
         return
@@ -86,19 +86,28 @@ def check_auth():
         
     # Check if the user is logged in
     if 'logged_in' not in session:
-        return redirect(url_for('login'))
+        # Allow API requests if they are protected by other means (e.g., future API key)
+        # For now, just redirect to login for all non-public HTML routes
+        if 'api' not in request.path:
+            return redirect(url_for('login'))
+        # If it is an API path, check session
+        if 'logged_in' not in session:
+             return jsonify({'error': 'Unauthorized'}), 401
 
-# --- Stream Proxy Endpoint ---
+
+# --- Stream Proxy Endpoints ---
+
+# EXISTING: Live Stream Proxy
 @app.route('/play/<string:login_name>')
 def play_stream(login_name):
     try:
         streams = streamlink_session.streams(f'twitch.tv/{login_name}')
         if "best" not in streams:
-            print(f"[Play]: Stream not found for {login_name}")
+            print(f"[Play-Live]: Stream not found for {login_name}")
             return "Stream offline or not found", 404
         stream_fd = streams["best"].open()
     except Exception as e:
-        print(f"[Play] ERROR: {e}")
+        print(f"[Play-Live] ERROR: {e}")
         return "Error opening stream", 500
     def generate_stream():
         try:
@@ -110,11 +119,36 @@ def play_stream(login_name):
             stream_fd.close()
     return Response(generate_stream(), mimetype='video/mp2t')
 
+# NEW: VOD Stream Proxy
+@app.route('/play_vod/<string:video_id>')
+def play_vod(video_id):
+    try:
+        # Note the different URL format for VODs
+        streams = streamlink_session.streams(f'twitch.tv/videos/{video_id}')
+        if "best" not in streams:
+            print(f"[Play-VOD]: VOD not found for {video_id}")
+            return "VOD not found", 404
+        stream_fd = streams["best"].open()
+    except Exception as e:
+        print(f"[Play-VOD] ERROR: {e}")
+        return "Error opening VOD stream", 500
+    def generate_stream():
+        try:
+            while True:
+                data = stream_fd.read(4096)
+                if not data: break
+                yield data
+        finally:
+            stream_fd.close()
+    return Response(generate_stream(), mimetype='video/mp2t')
+
+
 # --- Protected GUI/API Routes ---
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# --- Channel API (Existing) ---
 @app.route('/api/channels', methods=['GET'])
 def get_channels():
     conn = get_db_connection()
@@ -145,3 +179,45 @@ def delete_channel(channel_id):
     conn.commit()
     conn.close()
     return jsonify({'success': 'Channel deleted'}), 200
+
+# --- NEW: Settings API ---
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    conn = get_db_connection()
+    settings_raw = conn.execute('SELECT key, value FROM settings').fetchall()
+    conn.close()
+    settings = {row['key']: row['value'] for row in settings_raw}
+    
+    # Never send the client secret to the frontend
+    if 'twitch_client_secret' in settings:
+        settings['twitch_client_secret'] = "" # Send empty string
+        
+    return jsonify(settings)
+
+@app.route('/api/settings', methods=['POST'])
+def save_settings():
+    data = request.json
+    conn = get_db_connection()
+    
+    try:
+        # Save simple settings
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
+                     ('vod_enabled', str(data.get('vod_enabled', 'false')).lower()))
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
+                     ('twitch_client_id', data.get('twitch_client_id', '')))
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
+                     ('vod_count_per_channel', str(data.get('vod_count_per_channel', '5'))))
+        
+        # IMPORTANT: Only update the secret if a new, non-empty value is provided
+        if data.get('twitch_client_secret'):
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
+                         ('twitch_client_secret', data.get('twitch_client_secret')))
+            
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'Failed to save settings: {e}'}), 500
+    finally:
+        conn.close()
+        
+    return jsonify({'success': 'Settings saved!'}), 200

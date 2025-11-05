@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,8 +8,8 @@
 </head>
 <body>
     <div class="container login-container">
-        <h1>Willkommen beim TiviTwitch Manager!</h1>
-        <p>Dies scheint die erste Ausführung zu sein. Bitte lege ein Master-Passwort fest.</p>
+        <h1>Welcome to TiviTwitch Manager!</h1>
+        <p>This appears to be the first run. Please set a master password.</p>
         
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -20,8 +20,8 @@
         {% endwith %}
 
         <form method="POST" action="{{ url_for('setup') }}">
-            <input type="password" name="password" placeholder="Neues Passwort (min. 4 Zeichen)" required>
-            <button type="submit">Festlegen & Einloggen</button>
+            <input type="password" name="password" placeholder="New Password (min. 4 chars)" required>
+            <button type="submit">Set & Login</button>
         </form>
     </div>
 </body>

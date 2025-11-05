@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,28 +10,89 @@
     <div class="container">
         <div class="header">
             <h1>TiviTwitch Manager</h1>
-            <a href="{{ url_for('logout') }}" class="logout-btn">Ausloggen</a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
         </div>
         
         <div class="playlist-url">
             <strong>TiviMate M3U URL:</strong>
-            <input type="text" id="playlist-url-display" value="Lade..." readonly>
+            <input type="text" id="playlist-url-display" value="Loading..." readonly>
         </div>
 
         <div class="form-container">
-            <h3>Neuen Kanal hinzufügen</h3>
+            <h3>Add New Channel</h3>
             <form id="add-channel-form">
-                <input type="text" id="channel-name" placeholder="Twitch-Kanalname (z.B. 'gronkh')" required>
-                <button type="submit">Hinzufügen</button>
+                <input type="text" id="channel-name" placeholder="Twitch channel name (e.g. 'gronkh')" required>
+                <button type="submit">Add</button>
             </form>
             <p id="error-message" class="error"></p>
         </div>
 
         <div class="channel-list">
-            <h3>Verwaltete Kanäle</h3>
+            <h3>Managed Channels</h3>
             <ul id="channels">
-                <li>Lade...</li>
+                <li>Loading...</li>
             </ul>
+        </div>
+        
+        <div class="settings-container">
+            <h3>Settings</h3>
+            <div id="settings-form">
+                <div class="form-row">
+                    <label>Enable Twitch VODs</label>
+                    <label class="switch">
+                        <input type="checkbox" id="setting-vod-enabled">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label for="setting-client-id">Twitch Client ID</label>
+                    <input type="text" id="setting-client-id" placeholder="Enter your Twitch Client ID">
+                </div>
+                
+                <div class="form-row">
+                    <label for="setting-client-secret">Twitch Client Secret</label>
+                    <input type="password" id="setting-client-secret" placeholder="Enter new secret (is not shown)">
+                </div>
+                
+                <div class="form-row">
+                    <label for="setting-vod-count">VODs per Channel</label>
+                    <input type="number" id="setting-vod-count" min="1" max="50" value="5">
+                </div>
+                
+                <div class="form-footer">
+                    <a href="#" id="open-modal-btn">How do I get Twitch Credentials?</a>
+                    <button id="save-settings-btn">Save Settings</button>
+                </div>
+                <p id="settings-status"></p>
+            </div>
+        </div>
+        
+    </div>
+    
+    <div id="howto-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>How to get Twitch Credentials</h2>
+            <p>To use the VOD feature, you must register a free "App" with Twitch.</p>
+            <ol>
+                <li>Go to the Twitch Developer Console: <br>
+                    <a href="https://dev.twitch.tv/console" target="_blank">https://dev.twitch.tv/console</a></li>
+                <li>Log in with your Twitch account.</li>
+                <li>On the "Applications" page, click <strong>"Register Your Application"</strong>.</li>
+                <li>Fill out the form:
+                    <ul>
+                        <li><strong>Name:</strong> Give it any unique name (e.g., "MyTiviTwitchVODs").</li>
+                        <li><strong>OAuth Redirect URLs:</strong> This is required. Enter <strong>`http://localhost`</strong> (it won't be used, but must be set).</li>
+                        <li><strong>Category:</strong> Select "Application Integration" or "Chat Bot".</li>
+                    </ul>
+                </li>
+                <li>Click <strong>"Create"</strong>.</li>
+                <li>On the next page, you will see your new app. Click <strong>"Manage"</strong>.</li>
+                <li>You will now see your <strong>"Client ID"</strong>. Copy this value.</li>
+                <li>Click the <strong>"New Secret"</strong> button to generate a <strong>"Client Secret"</strong>. Copy this value immediately (it will not be shown again).</li>
+                <li>Paste both values into the settings on this page and click "Save".</li>
+            </ol>
         </div>
     </div>
     

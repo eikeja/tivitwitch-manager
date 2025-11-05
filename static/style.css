@@ -1,4 +1,4 @@
-/* --- Globale Stile --- */
+/* --- Global Styles --- */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: #f0f2f5;
@@ -15,9 +15,14 @@ body {
     padding: 20px;
 }
 h1 { color: #8a43f7; }
-h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
+h3 { 
+    border-bottom: 2px solid #f0f2f5; 
+    padding-bottom: 5px; 
+    margin-top: 25px; /* Added margin */
+    margin-bottom: 15px;
+}
 
-/* --- NEU: Header mit Logout --- */
+/* --- Header with Logout --- */
 .header {
     display: flex;
     justify-content: space-between;
@@ -30,6 +35,7 @@ h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
     margin: 0;
     padding: 0;
     border: none;
+    margin-top: 0; /* Override h1 margin */
 }
 .logout-btn {
     background-color: #f0f2f5;
@@ -55,7 +61,7 @@ h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
     font-family: monospace;
 }
 
-/* --- NEU: Login/Setup Container --- */
+/* --- Login/Setup Container --- */
 .login-container {
     max-width: 400px;
     text-align: center;
@@ -88,7 +94,7 @@ h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
     background-color: #7b3dcf;
 }
 
-/* --- NEU: Flash-Nachrichten (Fehler/Erfolg) --- */
+/* --- Flash-Nachrichten (Fehler/Erfolg) --- */
 .flash-error {
     background-color: #ffebe9;
     color: #c9302c;
@@ -102,7 +108,7 @@ h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
     border-radius: 6px;
 }
 
-/* --- Kanal-Formular (Hauptseite) --- */
+/* --- Channel Form (Main Page) --- */
 .form-container { margin-bottom: 20px; }
 #add-channel-form { display: flex; }
 #channel-name {
@@ -124,7 +130,7 @@ h3 { border-bottom: 2px solid #f0f2f5; padding-bottom: 5px; }
 }
 #add-channel-form button:hover { background-color: #7b3dcf; }
 
-/* --- Kanalliste (Hauptseite) --- */
+/* --- Channel List (Main Page) --- */
 ul#channels { list-style-type: none; padding: 0; }
 ul#channels li {
     display: flex;
@@ -146,3 +152,155 @@ ul#channels li button {
 }
 ul#channels li button:hover { background-color: #e03030; }
 .error { color: #fa3e3e; }
+
+
+/* --- NEW: Settings Section --- */
+.settings-container {
+    margin-top: 30px;
+}
+#settings-form .form-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f2f5;
+}
+#settings-form .form-row label {
+    font-weight: 500;
+}
+#settings-form input[type="text"],
+#settings-form input[type="password"],
+#settings-form input[type="number"] {
+    padding: 8px 10px;
+    border: 1px solid #ccd0d5;
+    border-radius: 6px;
+    font-size: 14px;
+    width: 250px;
+}
+#settings-form input[type="number"] {
+    width: 60px;
+}
+.form-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+}
+.form-footer a {
+    color: #8a43f7;
+    text-decoration: none;
+    font-size: 14px;
+}
+.form-footer a:hover {
+    text-decoration: underline;
+}
+#save-settings-btn {
+    padding: 10px 15px;
+    font-size: 16px;
+    background-color: #2b7d3d;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#save-settings-btn:hover {
+    background-color: #256a34;
+}
+#settings-status {
+    font-size: 14px;
+    margin-top: 10px;
+    text-align: right;
+}
+
+/* --- NEW: Toggle Switch CSS --- */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+}
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 28px;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+input:checked + .slider {
+    background-color: #8a43f7;
+}
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+/* --- NEW: Modal Styles --- */
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 100; 
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.6);
+}
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto; 
+    padding: 20px 30px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 700px;
+    border-radius: 8px;
+    position: relative;
+}
+.modal-content h2 {
+    margin-top: 0;
+    color: #8a43f7;
+}
+.modal-content ol li {
+    margin-bottom: 10px;
+}
+.modal-content code {
+    background-color: #f0f2f5;
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+.modal-content a {
+    color: #8a43f7;
+}
+.close-btn {
+    color: #aaa;
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+}
+.close-btn:hover,
+.close-btn:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}

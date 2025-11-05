@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +9,7 @@
 <body>
     <div class="container login-container">
         <h1>Login</h1>
-        <p>Bitte gib dein Passwort ein, um die Kanäle zu verwalten.</p>
+        <p>Please enter your password to manage channels.</p>
         
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -20,8 +20,8 @@
         {% endwith %}
 
         <form method="POST" action="{{ url_for('login') }}">
-            <input type="password" name="password" placeholder="Passwort" required>
-            <button type="submit">Einloggen</button>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Login</button>
         </form>
     </div>
 </body>
