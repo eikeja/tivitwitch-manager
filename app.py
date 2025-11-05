@@ -117,9 +117,7 @@ def generate_stream_data(stream_fd):
     finally:
         stream_fd.close()
 
-#
-# --- KORREKTUR 1: Live-Stream-Endpunkte ---
-#
+# --- Live Streams (Bleibt ein Proxy, das ist korrekt so) ---
 @app.route('/live/<username>/<password>/<int:stream_id>')
 @app.route('/live/<username>/<password>/<int:stream_id>.<ext>')
 def play_live_stream_xc(username, password, stream_id, ext=None):
@@ -149,7 +147,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
 #
-# --- KORREKTUR 2: VOD-Stream-Endpunkte ---
+# --- KORREKTUR: VOD STREAMS (Wird zum Redirect) ---
 #
 @app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
@@ -173,12 +171,16 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
         if "best" not in streams:
             print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
-        stream_fd = streams["best"].open()
+            
+        # NEUE LOGIK: Stream-URL holen statt Daten zu proxien
+        stream_url = streams["best"].url
+        
+        # TiviMate an die echte Twitch-URL weiterleiten
+        return redirect(stream_url)
+
     except Exception as e:
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
-    
-    return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
 
 # --- TIVIMATE XTREAM CODES API ENDPOINT (Keine Änderungen hier) ---
