@@ -117,8 +117,12 @@ def generate_stream_data(stream_fd):
     finally:
         stream_fd.close()
 
+#
+# --- KORREKTUR 1: Live-Stream-Endpunkte ---
+#
+@app.route('/live/<username>/<password>/<int:stream_id>')
 @app.route('/live/<username>/<password>/<int:stream_id>.<ext>')
-def play_live_stream_xc(username, password, stream_id, ext):
+def play_live_stream_xc(username, password, stream_id, ext=None):
     """Handles Xtream Codes /live/ call."""
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
@@ -144,9 +148,12 @@ def play_live_stream_xc(username, password, stream_id, ext):
         
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-# Dieser Endpunkt ist korrekt (V3) und hängt von der Poller-Korrektur ab
+#
+# --- KORREKTUR 2: VOD-Stream-Endpunkte ---
+#
+@app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
-def play_vod_stream_xc(username, password, stream_id, ext):
+def play_vod_stream_xc(username, password, stream_id, ext=None):
     """Handles Xtream Codes /movie/ call."""
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
@@ -174,7 +181,7 @@ def play_vod_stream_xc(username, password, stream_id, ext):
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
 
-# --- TIVIMATE XTREAM CODES API ENDPOINT ---
+# --- TIVIMATE XTREAM CODES API ENDPOINT (Keine Änderungen hier) ---
 
 @app.route('/player_api.php', methods=['GET', 'POST'])
 def player_api():
@@ -254,13 +261,8 @@ def player_api():
         
         return jsonify(live_streams_json)
 
-    #
-    # --- KORREKTURBLOCK: VOD-KATEGORIEN & KATEGORIE-MAP ---
-    #
-    
-    # Erstelle die Kategorie-Map EINMAL, um sie für alle VOD-Anfragen zu verwenden
+    # --- VOD-Kategorie-Map (Korrekt) ---
     categories_raw = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
-    # Map: {'Exsl95 VODs': '1', 'Papaplatte VODs': '2'}
     category_map = {row['category']: str(i + 1) for i, row in enumerate(categories_raw)}
     
     # --- 4. VOD (Filme) Kategorien ---
@@ -283,7 +285,6 @@ def player_api():
         params = []
         
         if category_id and category_id != '*':
-            # Finde den Kategorie-Namen zur ID
             cat_name = None
             for name, c_id in category_map.items():
                 if c_id == category_id:
@@ -301,19 +302,18 @@ def player_api():
         
         vod_streams_json = []
         for vod in vods:
-            # NEUE LOGIK: Finde die korrekte ID für DIESES VOD
-            vod_cat_id = category_map.get(vod['category'], "1") # Finde die ID aus der Map
+            vod_cat_id = category_map.get(vod['category'], "1") 
             
             vod_streams_json.append({
                 "num": vod['id'],
                 "name": vod['title'],
                 "stream_type": "movie", 
-                "stream_id": vod['id'], # Korrekt: 'id' (stabil dank Poller-Fix)
+                "stream_id": vod['id'], 
                 "stream_icon": "", 
                 "rating": 0,
                 "rating_5based": 0,
                 "added": str(int(time.time())),
-                "category_id": vod_cat_id, # Korrekt: Die echte Kategorie-ID
+                "category_id": vod_cat_id, 
                 "container_extension": "mp4", 
                 "custom_sid": "",
             })
