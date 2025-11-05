@@ -80,10 +80,8 @@ def logout():
     return redirect(url_for('login'))
 
 # --- Web UI Auth Middleware ---
-# This ONLY protects the Web UI, not the TiviMate API
 @app.before_request
 def check_web_ui_auth():
-    # Public endpoints that should NOT be auth-checked
     public_paths = [
         '/static/',
         '/login',
@@ -93,26 +91,20 @@ def check_web_ui_auth():
         '/movie/'
     ]
     
-    # Check if the request path starts with any public path
     for path in public_paths:
         if request.path.startswith(path):
-            return # This is a public route, do nothing
+            return 
 
-    # --- Everything else from here on is a protected Web UI route ---
-    
-    # Check if a password is set (for Web UI)
     if not get_password_hash():
          return redirect(url_for('setup'))
         
-    # Check if the user is logged in (for Web UI)
     if 'logged_in' not in session:
-        if 'api' in request.path: # API requests get JSON error
+        if 'api' in request.path: 
             return jsonify({'error': 'Unauthorized'}), 401
-        return redirect(url_for('login')) # Other pages get login redirect
+        return redirect(url_for('login')) 
 
 
 # --- TIVIMATE STREAMING ENDPOINTS (PUBLIC) ---
-# These are called by TiviMate. They MUST be public.
 
 def generate_stream_data(stream_fd):
     """Yields chunks of stream data."""
@@ -175,7 +167,6 @@ def play_vod_stream_xc(username, password, vod_id, ext):
 
 @app.route('/player_api.php', methods=['GET', 'POST'])
 def player_api():
-    # TiviMate sends credentials as query params
     username = request.args.get('username', 'default')
     password = request.args.get('password', '')
     action = request.args.get('action', '')
@@ -186,7 +177,6 @@ def player_api():
     # --- 1. Authentication ---
     if action == 'get_user_info' or action == '':
         if check_xc_auth(username, password):
-            # Successful login
             port = "80"
             if ':' in HOST_URL:
                 port_str = HOST_URL.split(':')[-1]
@@ -215,10 +205,8 @@ def player_api():
                 }
             })
         else:
-            # Failed login
             return jsonify({"user_info": {"auth": 0, "status": "Invalid Credentials"}})
 
-    # --- All other actions require auth ---
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
 
@@ -230,8 +218,6 @@ def player_api():
 
     # --- 3. Live Streams ---
     if action == 'get_live_streams':
-        category_id = request.args.get('category_id', None)
-        # TiviMate sends category_id "1" (oder "*")
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
         
         live_streams_json = []
@@ -240,31 +226,35 @@ def player_api():
                 "num": stream['id'],
                 "name": stream['display_name'],
                 "stream_type": "live",
-                "stream_id": stream['id'], # This ID is used in the /live/... URL
+                "stream_id": stream['id'],
                 "stream_icon": "",
                 "epg_channel_id": stream['login_name'],
                 "added": str(int(time.time())),
-                "category_id": "1", # All in "Twitch Live"
+                "category_id": "1", 
                 "custom_sid": "",
                 "tv_archive": 0,
             })
         
         return jsonify(live_streams_json)
 
-    # --- 4. VOD Categories ---
+    #
+    # --- KORREKTUR: VOD (Filme) und Serien klar trennen ---
+    #
+    
+    # --- 4. VOD (Filme) Kategorien ---
     if action == 'get_vod_categories':
         categories = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
         
         vod_categories_json = []
         for i, category in enumerate(categories):
             vod_categories_json.append({
-                "category_id": str(i + 1), # Simple 1-based index
+                "category_id": str(i + 1), 
                 "category_name": category['category'],
                 "parent_id": 0
             })
         return jsonify(vod_categories_json)
-
-    # --- 5. VOD Streams (Movies) ---
+        
+    # --- 5. VOD (Filme) Streams ---
     if action == 'get_vod_streams':
         category_id = request.args.get('category_id', None)
         
@@ -272,11 +262,14 @@ def player_api():
         params = []
         
         if category_id and category_id != '*':
-            # Get the category name first based on the 1-based index
-            cat_name_row = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category LIMIT 1 OFFSET ?', (int(category_id) - 1,)).fetchone()
-            if cat_name_row:
-                query += ' WHERE category = ?'
-                params.append(cat_name_row['category'])
+            try:
+                offset = int(category_id) - 1
+                cat_name_row = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category LIMIT 1 OFFSET ?', (offset,)).fetchone()
+                if cat_name_row:
+                    query += ' WHERE category = ?'
+                    params.append(cat_name_row['category'])
+            except ValueError:
+                pass 
         
         query += ' ORDER BY created_at DESC'
         
@@ -287,18 +280,27 @@ def player_api():
             vod_streams_json.append({
                 "num": vod['id'],
                 "name": vod['title'],
-                "stream_type": "movie", # Use "movie" type
-                "stream_id": vod['vod_id'], # This ID is used in the /movie/... URL
+                "stream_type": "movie", # Korrekt als "movie" melden
+                "stream_id": vod['vod_id'], 
                 "stream_icon": "", 
                 "rating": 0,
                 "rating_5based": 0,
                 "added": str(int(time.time())),
                 "category_id": category_id or "1",
-                "container_extension": "mp4", # Tell TiviMate this is an MP4
+                "container_extension": "mp4", 
                 "custom_sid": "",
             })
             
         return jsonify(vod_streams_json)
+
+    # --- 6. Serien Kategorien (Immer leer) ---
+    if action == 'get_series_categories':
+        return jsonify([]) # Explizit leere Liste
+        
+    # --- 7. Serien (Immer leer) ---
+    if action == 'get_series':
+        return jsonify([]) # Explizit leere Liste
+
 
     conn.close()
     # Default fallback
@@ -329,10 +331,7 @@ def add_channel():
     except sqlite3.IntegrityError:
         conn.close()
         return jsonify({'error': 'Channel already exists'}), 409
-    finally:
-        conn.close()
     
-    # After adding, update the live_streams table immediately
     try:
         new_channel_row = conn.execute('SELECT id FROM channels WHERE login_name = ?', (login_name,)).fetchone()
         if new_channel_row:
@@ -351,7 +350,6 @@ def add_channel():
 @app.route('/api/channels/<int:channel_id>', methods=['DELETE'])
 def delete_channel(channel_id):
     conn = get_db_connection()
-    # Also delete from live_streams and vod_streams tables
     channel = conn.execute('SELECT login_name FROM channels WHERE id = ?', (channel_id,)).fetchone()
     if channel:
         conn.execute('DELETE FROM vod_streams WHERE channel_login = ?', (channel['login_name'],))
