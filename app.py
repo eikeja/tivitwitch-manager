@@ -144,16 +144,31 @@ def play_live_stream_xc(username, password, stream_id, ext):
         
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-@app.route('/movie/<username>/<password>/<string:vod_id>.<ext>')
-def play_vod_stream_xc(username, password, vod_id, ext):
+#
+# --- KORREKTUR 1: VOD STREAMING ENDPOINT ---
+# Wir ändern <string:vod_id> zu <int:stream_id>, um die DB-ID (z.B. 1, 2, 3) zu empfangen
+#
+@app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
+def play_vod_stream_xc(username, password, stream_id, ext):
     """Handles Xtream Codes /movie/ call."""
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
 
+    # Suchen jetzt nach der 'id' (stream_id), um die 'vod_id' (Twitch-ID) zu finden
+    conn = get_db_connection()
+    vod = conn.execute('SELECT vod_id FROM vod_streams WHERE id = ?', (stream_id,)).fetchone()
+    conn.close()
+    
+    if not vod:
+        print(f"[Play-VOD-XC]: VOD with DB-ID {stream_id} not found.")
+        return "VOD not found", 404
+        
+    twitch_vod_id = vod['vod_id']
+
     try:
-        streams = streamlink_session.streams(f'twitch.tv/videos/{vod_id}')
+        streams = streamlink_session.streams(f'twitch.tv/videos/{twitch_vod_id}')
         if "best" not in streams:
-            print(f"[Play-VOD-XC]: VOD not found for {vod_id}")
+            print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
         stream_fd = streams["best"].open()
     except Exception as e:
@@ -216,7 +231,7 @@ def player_api():
     if action == 'get_live_categories':
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
-    # --- 3. Live Streams ---
+    # --- 3. Live Streams (Funktioniert) ---
     if action == 'get_live_streams':
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
         
@@ -226,7 +241,7 @@ def player_api():
                 "num": stream['id'],
                 "name": stream['display_name'],
                 "stream_type": "live",
-                "stream_id": stream['id'],
+                "stream_id": stream['id'], # num und stream_id sind identisch
                 "stream_icon": "",
                 "epg_channel_id": stream['login_name'],
                 "added": str(int(time.time())),
@@ -237,9 +252,6 @@ def player_api():
         
         return jsonify(live_streams_json)
 
-    #
-    # --- KORREKTUR: VOD (Filme) und Serien klar trennen ---
-    #
     
     # --- 4. VOD (Filme) Kategorien ---
     if action == 'get_vod_categories':
@@ -277,11 +289,15 @@ def player_api():
         
         vod_streams_json = []
         for vod in vods:
+            #
+            # --- KORREKTUR 2: VOD STREAM LISTE ---
+            # Wir setzen 'num' und 'stream_id' auf denselben Wert (die DB-ID)
+            #
             vod_streams_json.append({
                 "num": vod['id'],
                 "name": vod['title'],
-                "stream_type": "movie", # Korrekt als "movie" melden
-                "stream_id": vod['vod_id'], 
+                "stream_type": "movie", 
+                "stream_id": vod['id'], # Muss identisch zu 'num' sein
                 "stream_icon": "", 
                 "rating": 0,
                 "rating_5based": 0,
