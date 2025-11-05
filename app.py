@@ -72,7 +72,11 @@ def logout():
 @app.before_request
 def check_auth():
     # Public endpoints that TiviMate/VLC need
-    if request.path.startswith('/play/') or request.path.startswith('/static/'):
+    #
+    # --- HIER IST DIE KORREKTUR ---
+    # Wir fügen '/play_vod/' zur Ausnahmeliste hinzu
+    #
+    if request.path.startswith('/play/') or request.path.startswith('/play_vod/') or request.path.startswith('/static/'):
         return
         
     # Public endpoint for the M3U playlist (handled by Nginx)
