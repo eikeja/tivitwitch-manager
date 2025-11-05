@@ -1,7 +1,7 @@
-# --- Basis-Image ---
+# --- Base Image ---
 FROM python:3.11-slim-trixie
 
-# --- System-Abhängigkeiten ---
+# --- System Dependencies ---
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     streamlink \
@@ -9,24 +9,25 @@ RUN apt-get update && \
     nginx \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# --- App-Setup ---
+# --- App Setup ---
 WORKDIR /app
 COPY requirements.txt .
 
-# Installiere Python-Pakete
+# Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- App-Code kopieren ---
+# --- Copy App Code ---
 COPY . .
 
-# --- Nginx-Konfiguration kopieren ---
+# --- Copy Nginx Config ---
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# --- VOLUMEN / PORTS ---
+# --- Volumes & Ports ---
 VOLUME /data
+# Nginx listens on this port inside the container
 EXPOSE 8000
 
-# --- Entrypoint (unverändert) ---
+# --- Entrypoint ---
 COPY entrypoint.sh .
 RUN chmod +x /app/entrypoint.sh
 ENTRYPOINT ["/app/entrypoint.sh"]

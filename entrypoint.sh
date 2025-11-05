@@ -1,13 +1,11 @@
 #!/bin/sh
-
-# Setze 'set -e' damit das Skript bei einem Fehler abbricht
 set -e
 
-echo "[Entrypoint] Initialisiere Datenbank (falls nicht vorhanden)..."
-# Führe das DB-Init-Skript JEDES Mal aus. 
-# Dank "IF NOT EXISTS" in unserem SQL-Code ist das sicher.
+echo "[Entrypoint] Initializing database (if not exists)..."
+# Run the DB init script on every start.
+# This is safe because of "IF NOT EXISTS" in the SQL.
 python3 init_db.py
 
-echo "[Entrypoint] Datenbank ist bereit. Starte Supervisor (Webserver + Poller)..."
-# Führe den ursprünglichen Startbefehl aus (den, der vorher im Dockerfile CMD stand)
+echo "[Entrypoint] Database is ready. Starting Supervisor..."
+# Start supervisor, which manages Nginx, Gunicorn, and the Poller
 exec /usr/bin/supervisord -c /app/supervisord.conf

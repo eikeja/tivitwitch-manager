@@ -2,14 +2,19 @@ version: '3.8'
 
 services:
   tivitwitch:
+    # Tells Docker to build the image from the current folder
     build: .
     container_name: tivitwitch-manager
     restart: unless-stopped
     ports:
+      # Map the host port (left) to the container port (right, 8000)
       - "8998:8000"
     environment:
+      # This variable MUST be set by the user (e.g., in Portainer)
+      # Example: HOST_URL=http://192.168.1.100:8998
       - HOST_URL=${HOST_URL}
     volumes:
+      # Persists the database in a managed Docker volume
       - tivitwitch_data:/data
 
 volumes:

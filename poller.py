@@ -8,15 +8,16 @@ import streamlink
 from streamlink.exceptions import NoPluginError, PluginError
 import os
 
-# --- NEU: Dynamische Pfade aus Umgebungsvariablen ---
+# --- Configuration ---
 DB_PATH = '/data/channels.db'
-OUTPUT_M3U_FILE = '/tmp/playlist.m3u'
-# HOST_URL MUSS als Environment Variable gesetzt werden
+# This is the static file Nginx will serve
+OUTPUT_M3U_FILE = '/tmp/playlist.m3u' 
+# HOST_URL must be set as an environment variable
 HOST_URL = os.environ.get('HOST_URL')
 if not HOST_URL:
-    print("[Poller] FATALER FEHLER: HOST_URL Environment Variable ist nicht gesetzt.")
+    print("[Poller] FATAL ERROR: HOST_URL environment variable is not set.")
     exit(1)
-POLL_INTERVAL = 60 # Sekunden
+POLL_INTERVAL = 60 # seconds
 
 streamlink_session = streamlink.Streamlink()
 
@@ -26,7 +27,7 @@ def get_db_connection():
     return conn
 
 def update_m3u_file():
-    print(f"[Poller]: Starte Cache-Erstellung... (Host: {HOST_URL})")
+    print(f"[Poller]: Starting playlist generation... (Host: {HOST_URL})")
     try:
         conn = get_db_connection()
         channels = conn.execute('SELECT login_name FROM channels').fetchall()
@@ -49,6 +50,7 @@ def update_m3u_file():
             except Exception:
                 is_live = False
             
+            # Add [Offline] tag if the stream is not live
             channel_name = f"[Offline] {login_name.title()}"
             if is_live:
                 channel_name = login_name.title()
@@ -56,16 +58,17 @@ def update_m3u_file():
             new_m3u_content.append(f'#EXTINF:-1 tvg-id="{login_name}" tvg-name="{channel_name}" tvg-logo="" group-title="Twitch",{channel_name}')
             new_m3u_content.append(f'{HOST_URL}/play/{login_name}')
         
+        # Write the result to the static file
         with open(OUTPUT_M3U_FILE, 'w') as f:
             f.write('\n'.join(new_m3u_content))
             
-        print(f"[Poller]: Cache-Update erfolgreich. {live_count} von {len(channels)} Kanälen sind live.")
+        print(f"[Poller]: Playlist update successful. {live_count} of {len(channels)} channels are live.")
 
     except Exception as e:
-        print(f"[Poller] FEHLER: {e}")
+        print(f"[Poller] ERROR: {e}")
 
 if __name__ == "__main__":
-    print("[Poller]: Dienst gestartet. Warte 5s vor der ersten Prüfung...")
+    print("[Poller]: Service started. Waiting 5s before first poll...")
     gevent.sleep(5)
     while True:
         update_m3u_file()
