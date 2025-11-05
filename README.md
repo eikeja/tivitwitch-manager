@@ -4,8 +4,6 @@ Tired of the bloated Twitch app and website? TiviTwitch-Manager is a lightweight
 
 It features a simple, password-protected web interface to manage your channel list.
 
-
-
 ## Key Features
 
 * **VLC & TiviMate Compatible:** Uses an Nginx proxy to serve the playlist, ensuring compatibility with picky players like VLC.
