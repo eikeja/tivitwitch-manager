@@ -2,20 +2,15 @@ version: '3.8'
 
 services:
   tivitwitch:
-    # Sagt Portainer/Docker, dass er den Ordner bauen soll
     build: .
-    # Name des Images, das gebaut wird
     container_name: tivitwitch-manager
     restart: unless-stopped
     ports:
       - "8998:8000"
     environment:
-      # Ersetze <IP-DEINES-DOCKER-HOSTS> durch deine Server-IP.
-      - HOST_URL=http://<IP-DEINES-DOCKER-HOSTS>:8998
+      - HOST_URL=${HOST_URL}
     volumes:
-      # Speichert die Datenbank persistent in einem Docker-Volume
       - tivitwitch_data:/data
 
 volumes:
   tivitwitch_data:
-    # Definiert das Docker-Volume

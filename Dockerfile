@@ -24,7 +24,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 # --- VOLUMEN / PORTS ---
 VOLUME /data
-EXPOSE 8000 # Nginx lauscht jetzt auf diesem Port
+EXPOSE 8000
 
 # --- Entrypoint (unverändert) ---
 COPY entrypoint.sh .
