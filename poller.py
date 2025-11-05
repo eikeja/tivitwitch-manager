@@ -15,7 +15,7 @@ POLL_INTERVAL = 60 # seconds
 
 streamlink_session = streamlink.Streamlink()
 
-# --- NEW: Twitch API Helper Functions (wie zuvor) ---
+# --- Twitch API Helper Functions (unverändert) ---
 TWITCH_AUTH_URL = 'https://id.twitch.tv/oauth2/token'
 TWITCH_API_URL_USERS = 'https://api.twitch.tv/helix/users'
 TWITCH_API_URL_VIDEOS = 'https://api.twitch.tv/helix/videos'
@@ -28,7 +28,6 @@ def get_db_connection():
     return conn
 
 def get_settings():
-    """Fetches all settings from the database."""
     conn = get_db_connection()
     settings_raw = conn.execute('SELECT key, value FROM settings').fetchall()
     conn.close()
@@ -48,7 +47,6 @@ def get_settings():
     return settings
 
 def get_twitch_app_token(client_id, client_secret):
-    """Get or refresh a Twitch App Access Token."""
     global current_app_token, token_expires_at
     
     if current_app_token and time.time() < token_expires_at:
@@ -77,11 +75,9 @@ def get_twitch_app_token(client_id, client_secret):
         return None
 
 def get_user_ids(token, client_id, login_names):
-    """Get Twitch User IDs from a list of login names."""
     if not login_names:
         return {}
     
-    # Twitch API can handle up to 100 login names per request
     user_id_map = {}
     for i in range(0, len(login_names), 100):
         chunk = login_names[i:i+100]
@@ -103,12 +99,11 @@ def get_user_ids(token, client_id, login_names):
     return user_id_map
 
 def get_channel_vods(token, client_id, user_id, vod_count):
-    """Get the latest VODs for a specific User ID."""
     try:
         headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
         params = {
             'user_id': user_id,
-            'type': 'archive', # 'archive' = past broadcasts
+            'type': 'archive', 
             'first': vod_count
         }
         
@@ -129,15 +124,13 @@ def update_database():
     cursor = conn.cursor()
 
     try:
-        # Get the list of channels to check from the management table
         channels = conn.execute('SELECT id, login_name FROM channels').fetchall()
         login_names = [row['login_name'] for row in channels]
         
-        # --- 1. Live Stream Check ---
+        # --- 1. Live Stream Check (unverändert) ---
         print(f"[Poller-Live]: Checking status for {len(login_names)} live channels...")
         live_count = 0
         
-        # We'll update the status for all channels, even if offline
         for channel in channels:
             login_name = channel['login_name']
             is_live = False
@@ -153,7 +146,6 @@ def update_database():
             if is_live:
                 display_name = login_name.title()
             
-            # Update or insert into live_streams table
             cursor.execute(
                 "INSERT OR REPLACE INTO live_streams (id, login_name, display_name, is_live) VALUES (?, ?, ?, ?)",
                 (channel['id'], login_name, display_name, is_live)
@@ -161,7 +153,7 @@ def update_database():
 
         print(f"[Poller-Live]: Live check complete. {live_count} channels are live.")
 
-        # --- 2. VOD Check (Only if enabled) ---
+        # --- 2. VOD Check (Logik überarbeitet) ---
         if settings['vod_enabled'] and settings['twitch_client_id'] and settings['twitch_client_secret']:
             print("[Poller-VOD]: VOD feature is enabled. Fetching VODs...")
             token = get_twitch_app_token(settings['twitch_client_id'], settings['twitch_client_secret'])
@@ -172,36 +164,57 @@ def update_database():
                 if not user_id_map:
                     print("[Poller-VOD]: Could not map any login names to User IDs. Skipping VODs.")
                 else:
-                    # Prune VODs for channels that are no longer in the map
-                    all_logins_tuple = tuple(user_id_map.keys())
-                    cursor.execute(f"DELETE FROM vod_streams WHERE channel_login NOT IN {all_logins_tuple}")
-                    
+                    # Hole ALLE VODs aus der DB, um sie mit der API zu vergleichen
+                    db_vods_raw = cursor.execute('SELECT vod_id, channel_login FROM vod_streams').fetchall()
+                    db_vod_map = {} # Map: channel_login -> set(vod_id)
+                    for row in db_vods_raw:
+                        if row['channel_login'] not in db_vod_map:
+                            db_vod_map[row['channel_login']] = set()
+                        db_vod_map[row['channel_login']].add(row['vod_id'])
+
                     for login_name, user_id in user_id_map.items():
-                        # Delete old VODs for this channel first
-                        cursor.execute("DELETE FROM vod_streams WHERE channel_login = ?", (login_name,))
-                        
                         vods = get_channel_vods(token, settings['twitch_client_id'], user_id, settings['vod_count_per_channel'])
                         
                         if vods:
                             print(f"[Poller-VOD]: Found {len(vods)} VODs for {login_name}.")
                             vod_category = f"{login_name.title()} VODs"
                             
+                            api_vod_ids_this_channel = set()
+                            
                             for vod in vods:
+                                api_vod_ids_this_channel.add(vod['id'])
+                                
+                                # NEUE LOGIK: Füge VODs nur hinzu, wenn sie nicht existieren.
+                                # Das ändert die bestehende auto-increment 'id' nicht.
                                 cursor.execute(
-                                    "INSERT INTO vod_streams (vod_id, channel_login, title, created_at, category) VALUES (?, ?, ?, ?, ?)",
+                                    "INSERT OR IGNORE INTO vod_streams (vod_id, channel_login, title, created_at, category) VALUES (?, ?, ?, ?, ?)",
                                     (vod['id'], login_name, vod['title'], vod['created_at'], vod_category)
                                 )
+                            
+                            # NEUE LOGIK: Lösche alte VODs, die nicht mehr in der API-Liste sind.
+                            db_vods_this_channel = db_vod_map.get(login_name, set())
+                            vods_to_delete = db_vods_this_channel - api_vod_ids_this_channel
+                            
+                            if vods_to_delete:
+                                print(f"[Poller-VOD]: Pruning {len(vods_to_delete)} old VODs for {login_name}.")
+                                for old_vod_id in vods_to_delete:
+                                    cursor.execute("DELETE FROM vod_streams WHERE vod_id = ?", (old_vod_id,))
                         
                         gevent.sleep(0.1) # Be nice to the API
+                    
+                    # NEUE LOGIK: Lösche VODs von Kanälen, die entfernt wurden
+                    removed_channels = set(db_vod_map.keys()) - set(user_id_map.keys())
+                    if removed_channels:
+                         print(f"[Poller-VOD]: Pruning VODs for removed channels: {removed_channels}")
+                         for removed_channel in removed_channels:
+                             cursor.execute("DELETE FROM vod_streams WHERE channel_login = ?", (removed_channel,))
         
         elif settings['vod_enabled']:
             print("[Poller-VOD]: VODs are enabled, but Client ID or Secret are missing. Skipping VOD fetch.")
         else:
              print("[Poller-VOD]: VOD feature is disabled. Skipping.")
-             # Clear all VODs from DB if feature is disabled
              cursor.execute("DELETE FROM vod_streams")
 
-        # Commit all changes at the end
         conn.commit()
         print("[Poller]: Database update successful.")
 

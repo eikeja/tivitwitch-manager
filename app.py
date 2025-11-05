@@ -144,17 +144,13 @@ def play_live_stream_xc(username, password, stream_id, ext):
         
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-#
-# --- KORREKTUR 1: VOD STREAMING ENDPOINT ---
-# Wir ändern <string:vod_id> zu <int:stream_id>, um die DB-ID (z.B. 1, 2, 3) zu empfangen
-#
+# Dieser Endpunkt ist korrekt (V3) und hängt von der Poller-Korrektur ab
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext):
     """Handles Xtream Codes /movie/ call."""
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
 
-    # Suchen jetzt nach der 'id' (stream_id), um die 'vod_id' (Twitch-ID) zu finden
     conn = get_db_connection()
     vod = conn.execute('SELECT vod_id FROM vod_streams WHERE id = ?', (stream_id,)).fetchone()
     conn.close()
@@ -189,6 +185,8 @@ def player_api():
     if not HOST_URL:
         return "HOST_URL environment variable is not set on the server.", 500
 
+    conn = get_db_connection() # DB-Verbindung am Anfang öffnen
+
     # --- 1. Authentication ---
     if action == 'get_user_info' or action == '':
         if check_xc_auth(username, password):
@@ -198,6 +196,7 @@ def player_api():
                 if port_str.isdigit():
                     port = port_str
 
+            conn.close() # Verbindung hier schließen
             return jsonify({
                 "user_info": {
                     "username": username,
@@ -220,20 +219,23 @@ def player_api():
                 }
             })
         else:
+            conn.close() # Verbindung hier schließen
             return jsonify({"user_info": {"auth": 0, "status": "Invalid Credentials"}})
 
     if not check_xc_auth(username, password):
+        conn.close() # Verbindung hier schließen
         return "Invalid credentials", 401
 
-    conn = get_db_connection()
     
     # --- 2. Live Categories ---
     if action == 'get_live_categories':
+        conn.close() # Verbindung hier schließen
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
     # --- 3. Live Streams (Funktioniert) ---
     if action == 'get_live_streams':
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
+        conn.close() # Verbindung hier schließen
         
         live_streams_json = []
         for stream in streams:
@@ -241,7 +243,7 @@ def player_api():
                 "num": stream['id'],
                 "name": stream['display_name'],
                 "stream_type": "live",
-                "stream_id": stream['id'], # num und stream_id sind identisch
+                "stream_id": stream['id'], 
                 "stream_icon": "",
                 "epg_channel_id": stream['login_name'],
                 "added": str(int(time.time())),
@@ -252,18 +254,25 @@ def player_api():
         
         return jsonify(live_streams_json)
 
+    #
+    # --- KORREKTURBLOCK: VOD-KATEGORIEN & KATEGORIE-MAP ---
+    #
+    
+    # Erstelle die Kategorie-Map EINMAL, um sie für alle VOD-Anfragen zu verwenden
+    categories_raw = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
+    # Map: {'Exsl95 VODs': '1', 'Papaplatte VODs': '2'}
+    category_map = {row['category']: str(i + 1) for i, row in enumerate(categories_raw)}
     
     # --- 4. VOD (Filme) Kategorien ---
     if action == 'get_vod_categories':
-        categories = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
-        
         vod_categories_json = []
-        for i, category in enumerate(categories):
+        for category_name, category_id in category_map.items():
             vod_categories_json.append({
-                "category_id": str(i + 1), 
-                "category_name": category['category'],
+                "category_id": category_id, 
+                "category_name": category_name,
                 "parent_id": 0
             })
+        conn.close()
         return jsonify(vod_categories_json)
         
     # --- 5. VOD (Filme) Streams ---
@@ -274,35 +283,37 @@ def player_api():
         params = []
         
         if category_id and category_id != '*':
-            try:
-                offset = int(category_id) - 1
-                cat_name_row = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category LIMIT 1 OFFSET ?', (offset,)).fetchone()
-                if cat_name_row:
-                    query += ' WHERE category = ?'
-                    params.append(cat_name_row['category'])
-            except ValueError:
-                pass 
+            # Finde den Kategorie-Namen zur ID
+            cat_name = None
+            for name, c_id in category_map.items():
+                if c_id == category_id:
+                    cat_name = name
+                    break
+            
+            if cat_name:
+                query += ' WHERE category = ?'
+                params.append(cat_name)
         
         query += ' ORDER BY created_at DESC'
         
         vods = conn.execute(query, params).fetchall()
+        conn.close()
         
         vod_streams_json = []
         for vod in vods:
-            #
-            # --- KORREKTUR 2: VOD STREAM LISTE ---
-            # Wir setzen 'num' und 'stream_id' auf denselben Wert (die DB-ID)
-            #
+            # NEUE LOGIK: Finde die korrekte ID für DIESES VOD
+            vod_cat_id = category_map.get(vod['category'], "1") # Finde die ID aus der Map
+            
             vod_streams_json.append({
                 "num": vod['id'],
                 "name": vod['title'],
                 "stream_type": "movie", 
-                "stream_id": vod['id'], # Muss identisch zu 'num' sein
+                "stream_id": vod['id'], # Korrekt: 'id' (stabil dank Poller-Fix)
                 "stream_icon": "", 
                 "rating": 0,
                 "rating_5based": 0,
                 "added": str(int(time.time())),
-                "category_id": category_id or "1",
+                "category_id": vod_cat_id, # Korrekt: Die echte Kategorie-ID
                 "container_extension": "mp4", 
                 "custom_sid": "",
             })
@@ -311,15 +322,15 @@ def player_api():
 
     # --- 6. Serien Kategorien (Immer leer) ---
     if action == 'get_series_categories':
-        return jsonify([]) # Explizit leere Liste
+        conn.close()
+        return jsonify([]) 
         
     # --- 7. Serien (Immer leer) ---
     if action == 'get_series':
-        return jsonify([]) # Explizit leere Liste
-
+        conn.close()
+        return jsonify([]) 
 
     conn.close()
-    # Default fallback
     return jsonify({"error": "Unknown action"})
 
 
