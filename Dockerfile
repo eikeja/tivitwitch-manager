@@ -6,6 +6,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     streamlink \
     supervisor \
+    nginx \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- App-Setup ---
@@ -18,22 +19,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # --- App-Code kopieren ---
 COPY . .
 
-# --- VOLUMEN (Bleibt gleich) ---
+# --- Nginx-Konfiguration kopieren ---
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# --- VOLUMEN / PORTS ---
 VOLUME /data
+EXPOSE 8000 # Nginx lauscht jetzt auf diesem Port
 
-# --- PORTS (Bleibt gleich) ---
-EXPOSE 8000
-
-# --- ENTFERNT (DER FEHLER) ---
-# RUN python3 init_db.py
-
-# --- NEU: Entrypoint hinzufügen ---
-# Kopiere das neue Skript und mache es ausführbar
+# --- Entrypoint (unverändert) ---
 COPY entrypoint.sh .
 RUN chmod +x /app/entrypoint.sh
-
-# --- START-BEFEHL ---
-# Starte das Entrypoint-Skript, das sich um alles kümmert
 ENTRYPOINT ["/app/entrypoint.sh"]
-
-# (Das alte CMD-Kommando wird jetzt vom Entrypoint-Skript aufgerufen)
