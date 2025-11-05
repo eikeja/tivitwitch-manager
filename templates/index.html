@@ -13,9 +13,14 @@
             <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
         </div>
         
-        <div class="playlist-url">
-            <strong>TiviMate M3U URL:</strong>
-            <input type="text" id="playlist-url-display" value="Loading..." readonly>
+        <div class="setup-info">
+            <h3>TiviMate Xtream Codes Setup</h3>
+            <p>Use these details to add a new playlist in TiviMate:</p>
+            <ul>
+                <li><strong>Server Address:</strong> <code id="server-url">Loading...</code></li>
+                <li><strong>Username:</strong> <code>(anything, e.g. "twitch")</code></li>
+                <li><strong>Password:</strong> <code>(your master password)</code></li>
+            </ul>
         </div>
 
         <div class="form-container">

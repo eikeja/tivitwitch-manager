@@ -1,45 +1,37 @@
-// This event listener ensures the script runs only
-// after the HTML page is fully loaded.
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- Dynamic M3U URL Display ---
-    function setDynamicPlaylistUrl() {
-        const playlistUrlInput = document.getElementById('playlist-url-display');
-        if (playlistUrlInput) {
-            // Determines host (e.g., "192.168.178.217" or "twitch.mydomain.com")
+    // --- NEW: Dynamic XC Setup Info ---
+    function setDynamicSetupUrl() {
+        const serverUrlElement = document.getElementById('server-url');
+        if (serverUrlElement) {
             const host = window.location.host; 
-            // Determines protocol (e.g., "http:")
             const protocol = window.location.protocol; 
-            
-            const m3uUrl = `${protocol}//${host}/playlist.m3u`;
-            playlistUrlInput.value = m3uUrl;
+            const serverUrl = `${protocol}//${host}`;
+            serverUrlElement.textContent = serverUrl;
         }
     }
-    // Run the function on page load
-    setDynamicPlaylistUrl();
+    setDynamicSetupUrl();
+
     
-    // --- Channel Management ---
+    // --- Channel Management (unchanged) ---
     const form = document.getElementById('add-channel-form');
     const channelNameInput = document.getElementById('channel-name');
     const channelList = document.getElementById('channels');
     const errorMessage = document.getElementById('error-message');
 
-    // Function to load channels from the API
     async function fetchChannels() {
         try {
             const response = await fetch('/api/channels');
             if (!response.ok) {
-                // If we are not logged in, the server might redirect,
-                // which throws an error. We catch this.
                 if (response.status === 401 || response.redirected) {
-                    window.location.href = '/login'; // Redirect to login
+                    window.location.href = '/login'; 
                     return;
                 }
                 throw new Error('Network error');
             }
             const channels = await response.json();
             
-            channelList.innerHTML = ''; // Clear list
+            channelList.innerHTML = ''; 
             
             if (channels.length === 0) {
                 channelList.innerHTML = '<li>No channels added yet.</li>';
@@ -54,22 +46,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 channelList.appendChild(li);
             });
         } catch (error) {
-            // Prevent error message on login page load
             if (channelList) { 
                 channelList.innerHTML = '<li>Error loading channels.</li>';
             }
         }
     }
 
-    // Function to add a channel
-    // Ensure the form exists (it doesn't on login/setup)
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const channelName = channelNameInput.value.trim();
             if (channelName === '') return;
             
-            errorMessage.textContent = ''; // Clear old errors
+            errorMessage.textContent = ''; 
 
             try {
                 const response = await fetch('/api/channels', {
@@ -84,8 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(result.error || 'Unknown error');
                 }
                 
-                channelNameInput.value = ''; // Clear input
-                fetchChannels(); // Reload list
+                channelNameInput.value = ''; 
+                fetchChannels(); 
                 
             } catch (error) {
                 errorMessage.textContent = error.message;
@@ -93,8 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Function to delete a channel (Event Delegation)
-    // Ensure the list exists
     if (channelList) {
         channelList.addEventListener('click', async (e) => {
             if (e.target.classList.contains('delete-btn')) {
@@ -109,20 +96,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (!response.ok) throw new Error('Error deleting channel');
                     
-                    fetchChannels(); // Reload list
+                    fetchChannels(); 
                     
                 } catch (error) {
                     alert(error.message);
                 }
             }
         });
-
-        // Start initial load (only on the main page)
+        
         fetchChannels();
     }
     
     
-    // --- NEW: Settings Management ---
+    // --- Settings Management (unchanged) ---
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
         const vodEnabled = document.getElementById('setting-vod-enabled');
@@ -132,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const saveBtn = document.getElementById('save-settings-btn');
         const settingsStatus = document.getElementById('settings-status');
 
-        // Load settings from API
         async function loadSettings() {
             try {
                 const response = await fetch('/api/settings');
@@ -142,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 vodEnabled.checked = settings.vod_enabled === 'true';
                 clientId.value = settings.twitch_client_id || '';
                 vodCount.value = settings.vod_count_per_channel || '5';
-                // We don't load the secret, it's write-only
                 
             } catch (error) {
                 settingsStatus.textContent = error.message;
@@ -150,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Save settings to API
         saveBtn.addEventListener('click', async () => {
             settingsStatus.textContent = 'Saving...';
             settingsStatus.style.color = '#333';
@@ -158,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = {
                 vod_enabled: vodEnabled.checked,
                 twitch_client_id: clientId.value,
-                twitch_client_secret: clientSecret.value, // Send empty string if not changed
+                twitch_client_secret: clientSecret.value,
                 vod_count_per_channel: vodCount.value
             };
 
@@ -174,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 settingsStatus.textContent = result.success;
                 settingsStatus.style.color = '#2b7d3d';
-                clientSecret.value = ''; // Clear secret field after save
+                clientSecret.value = ''; 
                 
             } catch (error) {
                 settingsStatus.textContent = error.message;
@@ -182,28 +165,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Initial load of settings
         loadSettings();
     }
 
-    // --- NEW: Modal Logic ---
+    // --- Modal Logic (unchanged) ---
     const modal = document.getElementById('howto-modal');
     const openBtn = document.getElementById('open-modal-btn');
     const closeBtn = document.querySelector('.modal .close-btn');
 
     if (modal && openBtn && closeBtn) {
-        // Open modal
         openBtn.addEventListener('click', (e) => {
             e.preventDefault();
             modal.style.display = 'block';
         });
 
-        // Close modal (via 'X' button)
         closeBtn.addEventListener('click', () => {
             modal.style.display = 'none';
         });
 
-        // Close modal (via clicking background)
         window.addEventListener('click', (e) => {
             if (e.target == modal) {
                 modal.style.display = 'none';

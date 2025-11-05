@@ -51,15 +51,38 @@ h3 {
     background-color: #e4e6eb;
 }
 
-/* --- Playlist URL --- */
-.playlist-url input {
-    width: calc(100% - 20px);
-    padding: 8px 10px;
+/* --- NEW: Setup Info Box (replaces playlist-url) --- */
+.setup-info {
+    background-color: #f9f9f9;
     border: 1px solid #ddd;
     border-radius: 6px;
-    background-color: #f9f9f9;
+    padding: 10px 15px;
+}
+.setup-info h3 {
+    margin: 0 0 10px 0;
+    border: none;
+    font-size: 1.1em;
+    color: #333;
+}
+.setup-info ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+.setup-info li {
+    margin-bottom: 5px;
+}
+.setup-info code {
+    background-color: #e4e6eb;
+    padding: 2px 5px;
+    border-radius: 4px;
     font-family: monospace;
 }
+#server-url {
+    font-weight: bold;
+    color: #8a43f7;
+}
+
 
 /* --- Login/Setup Container --- */
 .login-container {
@@ -78,7 +101,7 @@ h3 {
     border-radius: 6px;
     font-size: 16px;
     width: 100%;
-    box-sizing: border-box; /* Wichtig für 100% Breite inkl. Padding */
+    box-sizing: border-box;
 }
 .login-container button {
     padding: 12px 15px;
@@ -94,7 +117,7 @@ h3 {
     background-color: #7b3dcf;
 }
 
-/* --- Flash-Nachrichten (Fehler/Erfolg) --- */
+/* --- Flash Messages --- */
 .flash-error {
     background-color: #ffebe9;
     color: #c9302c;
@@ -108,7 +131,7 @@ h3 {
     border-radius: 6px;
 }
 
-/* --- Channel Form (Main Page) --- */
+/* --- Channel Form --- */
 .form-container { margin-bottom: 20px; }
 #add-channel-form { display: flex; }
 #channel-name {
@@ -130,7 +153,7 @@ h3 {
 }
 #add-channel-form button:hover { background-color: #7b3dcf; }
 
-/* --- Channel List (Main Page) --- */
+/* --- Channel List --- */
 ul#channels { list-style-type: none; padding: 0; }
 ul#channels li {
     display: flex;
@@ -154,7 +177,7 @@ ul#channels li button:hover { background-color: #e03030; }
 .error { color: #fa3e3e; }
 
 
-/* --- NEW: Settings Section --- */
+/* --- Settings Section --- */
 .settings-container {
     margin-top: 30px;
 }
@@ -212,7 +235,7 @@ ul#channels li button:hover { background-color: #e03030; }
     text-align: right;
 }
 
-/* --- NEW: Toggle Switch CSS --- */
+/* --- Toggle Switch CSS --- */
 .switch {
     position: relative;
     display: inline-block;
@@ -253,7 +276,7 @@ input:checked + .slider:before {
     transform: translateX(22px);
 }
 
-/* --- NEW: Modal Styles --- */
+/* --- Modal Styles --- */
 .modal {
     display: none; 
     position: fixed; 

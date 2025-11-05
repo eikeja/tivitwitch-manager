@@ -8,13 +8,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import streamlink
 from streamlink.exceptions import NoPluginError, PluginError
 import os
+import time
 
 app = Flask(__name__)
-# A secret key is required for Flask sessions
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
-
-# Path to the persistent database
 DB_PATH = '/data/channels.db'
+HOST_URL = os.environ.get('HOST_URL')
+
 streamlink_session = streamlink.Streamlink()
 
 def get_db_connection():
@@ -28,7 +28,7 @@ def get_password_hash():
     conn.close()
     return row['value'] if row else None
 
-# --- Login & Setup Routes (All translated to English) ---
+# --- Web UI Auth & Routes (Login, Setup, etc.) ---
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
     if get_password_hash():
@@ -68,40 +68,36 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('login'))
 
-# --- Auth Middleware ---
+# --- Web UI Auth Middleware ---
+# This ONLY protects the Web UI, not the TiviMate API
 @app.before_request
-def check_auth():
-    # Public endpoints that TiviMate/VLC need
-    #
-    # --- HIER IST DIE KORREKTUR ---
-    # Wir fügen '/play_vod/' zur Ausnahmeliste hinzu
-    #
-    if request.path.startswith('/play/') or request.path.startswith('/play_vod/') or request.path.startswith('/static/'):
-        return
-        
-    # Public endpoint for the M3U playlist (handled by Nginx)
-    # The login/setup routes must also be public
-    if request.endpoint in ['login', 'setup']:
+def check_web_ui_auth():
+    # Public endpoints
+    public_endpoints = [
+        'login', 
+        'setup', 
+        'static', 
+        'player_api', # TiviMate API
+        'play_stream',   # TiviMate Stream
+        'play_vod'     # TiviMate VOD
+    ]
+    
+    if request.endpoint in public_endpoints:
         return
 
-    # Check if a password is set
+    # Check if a password is set (for Web UI)
     if not get_password_hash():
-        return redirect(url_for('setup'))
+        if request.endpoint != 'setup':
+             return redirect(url_for('setup'))
         
-    # Check if the user is logged in
+    # Check if the user is logged in (for Web UI)
     if 'logged_in' not in session:
-        # Allow API requests if they are protected by other means (e.g., future API key)
-        # For now, just redirect to login for all non-public HTML routes
-        if 'api' not in request.path:
-            return redirect(url_for('login'))
-        # If it is an API path, check session
-        if 'logged_in' not in session:
-             return jsonify({'error': 'Unauthorized'}), 401
+        return redirect(url_for('login'))
 
 
-# --- Stream Proxy Endpoints ---
+# --- TIVIMATE STREAMING ENDPOINTS (PUBLIC) ---
+# These are called by TiviMate. They MUST be public.
 
-# EXISTING: Live Stream Proxy
 @app.route('/play/<string:login_name>')
 def play_stream(login_name):
     try:
@@ -123,11 +119,10 @@ def play_stream(login_name):
             stream_fd.close()
     return Response(generate_stream(), mimetype='video/mp2t')
 
-# NEW: VOD Stream Proxy
-@app.route('/play_vod/<string:video_id>')
+# The ".mp4" at the end is ignored but makes TiviMate happy
+@app.route('/play_vod/<string:video_id>.mp4')
 def play_vod(video_id):
     try:
-        # Note the different URL format for VODs
         streams = streamlink_session.streams(f'twitch.tv/videos/{video_id}')
         if "best" not in streams:
             print(f"[Play-VOD]: VOD not found for {video_id}")
@@ -136,23 +131,148 @@ def play_vod(video_id):
     except Exception as e:
         print(f"[Play-VOD] ERROR: {e}")
         return "Error opening VOD stream", 500
-    def generate_stream():
-        try:
-            while True:
-                data = stream_fd.read(4096)
-                if not data: break
-                yield data
-        finally:
-            stream_fd.close()
+    
+    # Use generate_stream(), but this endpoint supports seeking
+    # TiviMate handles this via Range headers, which Flask/Gunicorn + Streamlink support
     return Response(generate_stream(), mimetype='video/mp2t')
 
 
-# --- Protected GUI/API Routes ---
+# --- TIVIMATE XTREAM CODES API ENDPOINT ---
+
+def check_xc_auth(username, password):
+    """Checks TiviMate credentials against the master password."""
+    if not password:
+        return False
+    pw_hash = get_password_hash()
+    if not pw_hash: # No password set in setup
+        return False
+    return check_password_hash(pw_hash, password)
+
+@app.route('/player_api.php', methods=['GET', 'POST'])
+def player_api():
+    # TiviMate sends credentials as query params
+    username = request.args.get('username', 'default')
+    password = request.args.get('password', '')
+    action = request.args.get('action', '')
+    
+    if not HOST_URL:
+        return "HOST_URL environment variable is not set on the server.", 500
+
+    # --- 1. Authentication ---
+    if action == 'get_user_info':
+        if check_xc_auth(username, password):
+            return jsonify({
+                "user_info": {
+                    "username": "tivitwitch_user",
+                    "password": password,
+                    "auth": 1,
+                    "status": "Active",
+                    "exp_date": None,
+                    "is_trial": "0",
+                    "max_connections": "1",
+                    "created_at": time.time()
+                },
+                "server_info": {
+                    "url": HOST_URL.replace("http://", "").replace("https://", ""),
+                    "port": HOST_URL.split(':')[-1] if ':' in HOST_URL else "80",
+                    "https": 1 if HOST_URL.startswith("https") else 0,
+                    "server_protocol": "http",
+                    "rtmp_port": "1935",
+                    "timezone": "UTC",
+                    "timestamp_now": int(time.time()),
+                }
+            })
+        else:
+            return jsonify({"user_info": {"auth": 0, "status": "Invalid Credentials"}})
+
+    # --- All other actions require auth ---
+    if not check_xc_auth(username, password):
+        return "Invalid credentials", 401
+
+    conn = get_db_connection()
+    
+    # --- 2. Live Categories ---
+    if action == 'get_live_categories':
+        return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
+
+    # --- 3. Live Streams ---
+    if action == 'get_live_streams':
+        category_id = request.args.get('category_id', None)
+        streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
+        
+        live_streams_json = []
+        for stream in streams:
+            live_streams_json.append({
+                "num": stream['id'],
+                "name": stream['display_name'],
+                "stream_type": "live",
+                "stream_id": stream['id'],
+                "stream_icon": "",
+                "epg_channel_id": stream['login_name'],
+                "added": str(int(time.time())),
+                "category_id": "1", # All in "Twitch Live"
+                "custom_sid": "",
+                "tv_archive": 0,
+            })
+        
+        return jsonify(live_streams_json)
+
+    # --- 4. VOD Categories ---
+    if action == 'get_vod_categories':
+        categories = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
+        
+        vod_categories_json = []
+        for i, category in enumerate(categories):
+            vod_categories_json.append({
+                "category_id": str(i + 1),
+                "category_name": category['category'],
+                "parent_id": 0
+            })
+        return jsonify(vod_categories_json)
+
+    # --- 5. VOD Streams ---
+    if action == 'get_vod_streams':
+        category_id = request.args.get('category_id', None)
+        
+        query = 'SELECT * FROM vod_streams'
+        if category_id and category_id != '*':
+            # Get the category name first
+            cat_name_row = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category LIMIT 1 OFFSET ?', (int(category_id) - 1,)).fetchone()
+            if cat_name_row:
+                query += f" WHERE category = '{cat_name_row['category']}'"
+        
+        query += ' ORDER BY created_at DESC'
+        
+        vods = conn.execute(query).fetchall()
+        
+        vod_streams_json = []
+        for vod in vods:
+            vod_streams_json.append({
+                "num": vod['id'],
+                "name": vod['title'],
+                "stream_type": "vod",
+                "stream_id": vod['vod_id'],
+                "stream_icon": "", # Placeholder for future VOD thumbnail
+                "rating": 0,
+                "rating_5based": 0,
+                "added": str(int(time.time())),
+                "category_id": category_id or "1",
+                "container_extension": "mp4", # Tell TiviMate this is an MP4
+                "custom_sid": "",
+            })
+            
+        return jsonify(vod_streams_json)
+
+    conn.close()
+    # Default fallback
+    return jsonify({"error": "Unknown action"})
+
+
+# --- Web UI Protected Routes ---
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# --- Channel API (Existing) ---
 @app.route('/api/channels', methods=['GET'])
 def get_channels():
     conn = get_db_connection()
@@ -184,27 +304,21 @@ def delete_channel(channel_id):
     conn.close()
     return jsonify({'success': 'Channel deleted'}), 200
 
-# --- NEW: Settings API ---
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
     conn = get_db_connection()
     settings_raw = conn.execute('SELECT key, value FROM settings').fetchall()
     conn.close()
     settings = {row['key']: row['value'] for row in settings_raw}
-    
-    # Never send the client secret to the frontend
     if 'twitch_client_secret' in settings:
-        settings['twitch_client_secret'] = "" # Send empty string
-        
+        settings['twitch_client_secret'] = "" 
     return jsonify(settings)
 
 @app.route('/api/settings', methods=['POST'])
 def save_settings():
     data = request.json
     conn = get_db_connection()
-    
     try:
-        # Save simple settings
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
                      ('vod_enabled', str(data.get('vod_enabled', 'false')).lower()))
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
@@ -212,7 +326,6 @@ def save_settings():
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
                      ('vod_count_per_channel', str(data.get('vod_count_per_channel', '5'))))
         
-        # IMPORTANT: Only update the secret if a new, non-empty value is provided
         if data.get('twitch_client_secret'):
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
                          ('twitch_client_secret', data.get('twitch_client_secret')))
