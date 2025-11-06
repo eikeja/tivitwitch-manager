@@ -17,7 +17,7 @@ POLL_INTERVAL = 60 # seconds
 TWITCH_AUTH_URL = 'https://id.twitch.tv/oauth2/token'
 TWITCH_API_URL_USERS = 'https://api.twitch.tv/helix/users'
 TWITCH_API_URL_VIDEOS = 'https://api.twitch.tv/helix/videos'
-TWITCH_API_URL_STREAMS = 'https://api.twitch.tv/helix/streams' # NEU: Stream-Info-Endpunkt
+TWITCH_API_URL_STREAMS = 'https://api.twitch.tv/helix/streams' # NEW: Stream info endpoint
 current_app_token = None
 token_expires_at = 0
 
@@ -113,7 +113,6 @@ def get_channel_vods(token, client_id, user_id, vod_count):
         print(f"[Poller-VOD] ERROR: Failed to get VODs for user {user_id}: {e}")
         return []
 
-# NEU: Holt Live-Status, Titel und Spiel von der API
 def get_live_streams_info(token, client_id, user_id_map):
     """Fetches live stream info (title, game) from the Twitch API."""
     if not user_id_map:
@@ -126,7 +125,6 @@ def get_live_streams_info(token, client_id, user_id_map):
     try:
         headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
         
-        # Twitch API erlaubt bis zu 100 User-IDs pro Anfrage
         for i in range(0, len(user_ids), 100):
             chunk = user_ids[i:i+100]
             params = [('user_id', user_id) for user_id in chunk]
@@ -147,7 +145,7 @@ def get_live_streams_info(token, client_id, user_id_map):
     return live_stream_map
 
 
-# --- Main Poller Function (Überarbeitet) ---
+# --- Main Poller Function ---
 
 def update_database():
     print("[Poller]: Starting database update cycle...")
@@ -160,7 +158,7 @@ def update_database():
         channels = conn.execute('SELECT id, login_name FROM channels').fetchall()
         login_names = [row['login_name'] for row in channels]
         
-        # --- 1. Hole Token und User-IDs (wird für Live und VODs benötigt) ---
+        # --- 1. Get Token and User IDs (needed for Live and VODs) ---
         token = None
         user_id_map = {}
         if (settings['vod_enabled'] or len(channels) > 0) and settings['twitch_client_id'] and settings['twitch_client_secret']:
@@ -168,18 +166,18 @@ def update_database():
             if token:
                 user_id_map = get_user_ids(token, settings['twitch_client_id'], login_names)
         
-        # --- 2. Live Stream Check (NEUE LOGIK) ---
+        # --- 2. Live Stream Check (NEW LOGIC) ---
         print(f"[Poller-Live]: Checking status for {len(login_names)} live channels...")
         live_stream_info_map = {}
         if token and user_id_map:
-            # Tausche User-IDs zu Login-Namen für einfachere Referenz
+            # Swap User-IDs to Login-Names for easier reference
             login_to_user_id = user_id_map
             user_id_to_login = {v: k for k, v in user_id_map.items()}
             
-            # Frage die API nach Live-Stream-Infos
+            # Query the API for live stream info
             live_stream_api_data = get_live_streams_info(token, settings['twitch_client_id'], user_id_map)
             
-            # Übersetze die API-Antwort (Schlüssel ist user_id) in unsere Map (Schlüssel ist login_name)
+            # Translate the API response (key is user_id) into our map (key is login_name)
             for user_id, info in live_stream_api_data.items():
                 login_name = user_id_to_login.get(user_id)
                 if login_name:
@@ -187,19 +185,19 @@ def update_database():
 
         live_count = len(live_stream_info_map)
         
-        # Aktualisiere alle Kanäle in der DB
+        # Update all channels in the DB
         for channel in channels:
             login_name = channel['login_name']
-            epg_id = f"{login_name}.tv" # Eindeutige EPG-ID (z.B. "gronkh.tv")
+            epg_id = f"{login_name}.tv" # Unique EPG-ID (e.g., "gronkh.tv")
             
             stream_info = live_stream_info_map.get(login_name)
             
-            if stream_info: # Kanal ist LIVE
+            if stream_info: # Channel is LIVE
                 display_name = login_name.title()
                 is_live = True
                 stream_title = stream_info['title']
                 stream_game = stream_info['game']
-            else: # Kanal ist OFFLINE
+            else: # Channel is OFFLINE
                 display_name = f"[Offline] {login_name.title()}"
                 is_live = False
                 stream_title = None
@@ -214,7 +212,7 @@ def update_database():
 
         print(f"[Poller-Live]: Live check complete. {live_count} channels are live.")
 
-        # --- 3. VOD Check (unverändert) ---
+        # --- 3. VOD Check ---
         if settings['vod_enabled'] and token:
             print("[Poller-VOD]: VOD feature is enabled. Fetching VODs...")
             db_vods_raw = cursor.execute('SELECT vod_id, channel_login FROM vod_streams').fetchall()
@@ -228,16 +226,25 @@ def update_database():
                 vods = get_channel_vods(token, settings['twitch_client_id'], user_id, settings['vod_count_per_channel'])
                 
                 if vods:
-                    # print(f"[Poller-VOD]: Found {len(vods)} VODs for {login_name}.") # (Wird zu gesprächig)
+                    # print(f"[Poller-VOD]: Found {len(vods)} VODs for {login_name}.") # (Becomes too verbose)
                     vod_category = f"{login_name.title()} VODs"
                     api_vod_ids_this_channel = set()
                     
                     for vod in vods:
                         api_vod_ids_this_channel.add(vod['id'])
+                        
+                        # --- START OF CHANGE ---
+                        # NEW: Format thumbnail URL
+                        # Twitch-URL: ...-thumbnail-%{width}x%{height}.jpg
+                        # We replace it with a standard size
+                        thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
+                        
+                        # CHANGED: From IGNORE to REPLACE and added thumbnail_url
                         cursor.execute(
-                            "INSERT OR IGNORE INTO vod_streams (vod_id, channel_login, title, created_at, category) VALUES (?, ?, ?, ?, ?)",
-                            (vod['id'], login_name, vod['title'], vod['created_at'], vod_category)
+                            "INSERT OR REPLACE INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?)",
+                            (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail)
                         )
+                        # --- END OF CHANGE ---
                     
                     db_vods_this_channel = db_vod_map.get(login_name, set())
                     vods_to_delete = db_vods_this_channel - api_vod_ids_this_channel

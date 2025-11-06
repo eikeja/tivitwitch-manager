@@ -7,7 +7,7 @@ cursor = conn.cursor()
 
 print(f"Initializing database at {DB_PATH}")
 
-# --- 1. Create tables if they don't exist (unverändert) ---
+# --- 1. Create tables if they don't exist ---
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,33 +39,40 @@ CREATE TABLE IF NOT EXISTS vod_streams (
     channel_login TEXT NOT NULL,
     title TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    category TEXT NOT NULL
+    category TEXT NOT NULL,
+    thumbnail_url TEXT 
 )
 ''')
 
-# --- 2. NEU: Migrations-Block (fügt EPG-Spalten hinzu, falls sie fehlen) ---
+# --- 2. Migration block (adds columns if they are missing) ---
 print("Running database migrations (if needed)...")
 try:
     cursor.execute("ALTER TABLE live_streams ADD COLUMN epg_channel_id TEXT")
     print("  > Added 'epg_channel_id' column to live_streams.")
 except sqlite3.OperationalError:
-    pass # Spalte existiert bereits, alles gut
+    pass # Column already exists, all good
 
 try:
     cursor.execute("ALTER TABLE live_streams ADD COLUMN stream_title TEXT")
     print("  > Added 'stream_title' column to live_streams.")
 except sqlite3.OperationalError:
-    pass # Spalte existiert bereits, alles gut
+    pass # Column already exists, all good
 
 try:
     cursor.execute("ALTER TABLE live_streams ADD COLUMN stream_game TEXT")
     print("  > Added 'stream_game' column to live_streams.")
 except sqlite3.OperationalError:
-    pass # Spalte existiert bereits, alles gut
-# --- Ende Migrations-Block ---
+    pass # Column already exists, all good
+
+# --- NEW MIGRATION FOR VODS ---
+try:
+    cursor.execute("ALTER TABLE vod_streams ADD COLUMN thumbnail_url TEXT")
+    print("  > Added 'thumbnail_url' column to vod_streams.")
+except sqlite3.OperationalError:
+    pass # Column already exists, all good
 
 
-# --- 3. Add default settings (unverändert) ---
+# --- 3. Add default settings ---
 default_settings = {
     'vod_enabled': 'false',
     'twitch_client_id': '',

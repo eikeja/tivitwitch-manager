@@ -40,24 +40,24 @@ def check_xc_auth(username, password):
         return False
     return check_password_hash(pw_hash, password)
 
-# --- Globale EPG XML Generator Funktion (Korrekt) ---
+# --- Global EPG XML Generator Function ---
 def generate_epg_data():
-    """Generiert den XMLTV-Inhalt basierend auf der DB."""
+    """Generates the XMLTV content based on the DB."""
     conn = get_db_connection()
     streams = conn.execute('SELECT * FROM live_streams WHERE is_live = 1').fetchall()
     conn.close()
     
     xml_content = ['<?xml version="1.0" encoding="UTF-8"?>', '<tv>']
     
-    # Kanäle definieren
+    # Define channels
     for stream in streams:
         xml_content.append(f'  <channel id="{stream["epg_channel_id"]}">')
         xml_content.append(f'    <display-name>{html.escape(stream["login_name"].title())}</display-name>')
         xml_content.append('  </channel>')
         
-    # Programme (EPG-Einträge) definieren
+    # Define programs (EPG entries)
     now = datetime.utcnow()
-    # EPG für 24 Stunden anzeigen (wunschgemäß)
+    # Show EPG for 24 hours
     start_time = now.strftime('%Y%m%d%H%M%S +0000')
     end_time = (now + timedelta(hours=24)).strftime('%Y%m%d%H%M%S +0000')
     
@@ -115,7 +115,7 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('login'))
 
-# --- Web UI Auth Middleware (Korrekt) ---
+# --- Web UI Auth Middleware ---
 @app.before_request
 def check_web_ui_auth():
     public_paths = [
@@ -157,7 +157,7 @@ def generate_stream_data(stream_fd):
     finally:
         stream_fd.close()
 
-# --- Live Streams (Korrekt) ---
+# --- Live Streams ---
 @app.route('/live/<username>/<password>/<int:stream_id>')
 @app.route('/live/<username>/<password>/<int:stream_id>.<ext>')
 def play_live_stream_xc(username, password, stream_id, ext=None):
@@ -185,7 +185,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
         
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-# --- VOD Streams (Korrekt) ---
+# --- VOD Streams ---
 @app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
@@ -215,7 +215,7 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
 
-# --- M3U Live Stream Endpoint (Korrekt) ---
+# --- M3U Live Stream Endpoint ---
 @app.route('/play_live_m3u/<int:stream_id>')
 def play_live_m3u(stream_id):
     conn = get_db_connection()
@@ -240,7 +240,7 @@ def play_live_m3u(stream_id):
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
 
-# --- M3U Playlist Endpoint (Korrekt) ---
+# --- M3U Playlist Endpoint ---
 @app.route('/playlist.m3u')
 def generate_m3u():
     password = request.args.get('password', '')
@@ -257,7 +257,7 @@ def generate_m3u():
     streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
     conn.close()
     
-    # EPG-URL korrekt einfügen
+    # Insert EPG-URL correctly
     epg_url = f"{HOST_URL}/epg.xml?password={password}"
     m3u_content = [f'#EXTM3U url-tvg="{epg_url}"']
     
@@ -271,7 +271,7 @@ def generate_m3u():
 
     return Response('\n'.join(m3u_content), mimetype='audio/mpegurl')
 
-# --- M3U EPG Endpoint (Korrekt) ---
+# --- M3U EPG Endpoint ---
 @app.route('/epg.xml')
 def generate_epg_xml():
     password = request.args.get('password', '')
@@ -282,7 +282,7 @@ def generate_epg_xml():
     xml_data = generate_epg_data()
     return Response(xml_data, mimetype='application/xml')
 
-# --- Xtream Codes EPG Endpoint (Korrekt) ---
+# --- Xtream Codes EPG Endpoint ---
 @app.route('/xmltv.php')
 def generate_xc_epg_xml():
     username = request.args.get('username')
@@ -295,7 +295,7 @@ def generate_xc_epg_xml():
     return Response(xml_data, mimetype='application/xml')
 
 
-# --- TIVIMATE XTREAM CODES API ENDPOINT (ANGEPASST) ---
+# --- TIVIMATE XTREAM CODES API ENDPOINT ---
 @app.route('/player_api.php', methods=['GET', 'POST'])
 def player_api():
     username = request.args.get('username', 'default')
@@ -307,7 +307,7 @@ def player_api():
 
     conn = get_db_connection() 
 
-    # --- 1. Authentication (KORRIGIERT) ---
+    # --- 1. Authentication ---
     if action == 'get_user_info' or action == '':
         if check_xc_auth(username, password):
             port = "80"
@@ -336,8 +336,6 @@ def player_api():
                     "rtmp_port": "1935",
                     "timezone": "UTC",
                     "timestamp_now": int(time.time()),
-                    # KORREKTUR: Das ist das richtige Feld, das TiviMate erwartet.
-                    # Es muss nur der Pfad sein, TiviMate fügt User/Pass selbst hinzu.
                     "epg_url": "/xmltv.php" 
                 }
             })
@@ -350,12 +348,12 @@ def player_api():
         return "Invalid credentials", 401
 
     
-    # --- 2. Live Categories (Korrekt) ---
+    # --- 2. Live Categories ---
     if action == 'get_live_categories':
         conn.close() 
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
-    # --- 3. Live Streams (Korrekt) ---
+    # --- 3. Live Streams ---
     if action == 'get_live_streams':
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
         conn.close() 
@@ -368,7 +366,7 @@ def player_api():
                 "stream_type": "live",
                 "stream_id": stream['id'], 
                 "stream_icon": "",
-                "epg_channel_id": stream['epg_channel_id'], # Korrekt
+                "epg_channel_id": stream['epg_channel_id'],
                 "added": str(int(time.time())),
                 "category_id": "1", 
                 "custom_sid": "",
@@ -377,11 +375,11 @@ def player_api():
         
         return jsonify(live_streams_json)
         
-    # --- VOD-Kategorie-Map (Korrekt) ---
+    # --- VOD Category Map ---
     categories_raw = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
     category_map = {row['category']: str(i + 1) for i, row in enumerate(categories_raw)}
     
-    # --- 4. VOD (Filme) Kategorien (Korrekt) ---
+    # --- 4. VOD (Movie) Categories ---
     if action == 'get_vod_categories':
         vod_categories_json = []
         for category_name, category_id in category_map.items():
@@ -393,7 +391,7 @@ def player_api():
         conn.close()
         return jsonify(vod_categories_json)
         
-    # --- 5. VOD (Filme) Streams (Korrekt) ---
+    # --- 5. VOD (Movie) Streams ---
     if action == 'get_vod_streams':
         category_id = request.args.get('category_id', None)
         
@@ -425,7 +423,7 @@ def player_api():
                 "name": vod['title'],
                 "stream_type": "movie", 
                 "stream_id": vod['id'], 
-                "stream_icon": "", 
+                "stream_icon": vod['thumbnail_url'] or None, # <-- THIS IS THE CHANGE
                 "rating": 0,
                 "rating_5based": 0,
                 "added": str(int(time.time())),
@@ -436,12 +434,12 @@ def player_api():
             
         return jsonify(vod_streams_json)
 
-    # --- 6. Serien Kategorien (Immer leer) ---
+    # --- 6. Series Categories (Always empty) ---
     if action == 'get_series_categories':
         conn.close()
         return jsonify([]) 
         
-    # --- 7. Serien (Immer leer) ---
+    # --- 7. Series (Always empty) ---
     if action == 'get_series':
         conn.close()
         return jsonify([]) 
