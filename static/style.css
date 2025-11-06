@@ -43,16 +43,17 @@ h3 {
     color: #ffffff;
 }
 
-/* Flaches Layout fÃ¼r Header, Setup-Box und Formular */
+/* Flaches Layout fÃ¼r Header und Setup-Box */
 .header,
-.setup-info,
-.form-container {
+.setup-info {
     background-color: transparent;
     border-radius: 0;
     padding: 0; 
     margin-bottom: 30px; 
     box-shadow: none; 
 }
+
+/* KORREKTUR: .form-container-Regel entfernt */
 
 /* Header (flach) */
 .header {
@@ -108,8 +109,8 @@ hr.section-divider {
     gap: 10px;
 }
 .copy-wrapper input[type="text"] {
-    flex-grow: 1; /* Input fÃ¼llt den Platz */
-    width: auto; /* Ãœberschreibt 100% Breite */
+    flex-grow: 1; 
+    width: auto; 
 }
 .copy-btn {
     padding: 8px 12px;
@@ -134,7 +135,6 @@ hr.section-divider {
     margin-top: 8px;
     color: var(--text-secondary);
 }
-/* URL-Inputs (gilt fÃ¼r alle 3) */
 .m3u-info input[type="text"],
 #server-url-display {
     padding: 8px 10px;
@@ -245,29 +245,40 @@ input[type="number"]:focus {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     margin-bottom: 30px;
 }
-ul#channels { list-style-type: none; padding: 0; }
+/* NEU: Header fÃ¼r Sektionen (Managed Channels) */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px; /* Abstand zur Liste */
+}
+.section-header h3 {
+    margin: 0; /* Ãœberschreibt Standard h3-Margin */
+    border-bottom: none; /* Ãœberschreibt Standard h3-Trenner */
+}
+/* Verkleinert den "Add New Channel" Button, damit er besser neben die Ãœberschrift passt */
+.section-header .btn-primary {
+    padding: 8px 12px;
+    font-size: 14px;
+}
 
-/* --- HIER SIND DIE ÄNDERUNGEN FÜR DEN HOVER-EFFEKT --- */
+ul#channels { list-style-type: none; padding: 0; }
 ul#channels li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 15px; /* Padding links/rechts hinzugefügt */
-    border-bottom: 1px solid var(--border-color); /* Trenner */
+    padding: 12px 0; 
+    border-bottom: 1px solid var(--border-color); 
     margin-bottom: 0;
     background-color: transparent; 
-    border-radius: var(--border-radius-small); /* Ecken standardmäßig rund */
-    transition: var(--transition-speed); /* Übergang für Hover */
 }
 ul#channels li:last-child {
-    border-bottom: none; /* Kein Trenner beim letzten Element */
+    border-bottom: none; 
 }
 ul#channels li:hover {
-    background-color: var(--bg-dark-tertiary); /* Sanfter Hover-Effekt */
-    transform: scale(1.01); /* Leichter Zoom-Effekt */
+    background-color: transparent; 
+    transform: none; 
 }
-/* --- ENDE DER ÄNDERUNGEN --- */
-
 ul#channels li span { font-size: 1.1em; }
 
 ul#channels li button { /* Delete Button */
@@ -383,7 +394,7 @@ input:checked + .slider:before {
     padding: 20px 30px;
     border: 1px solid var(--border-color);
     width: 80%;
-    max-width: 500px; /* Etwas kleiner fÃ¼r Add-Modal */
+    max-width: 500px; 
     border-radius: var(--border-radius-main);
     position: relative;
     box-shadow: 0 8px 30px rgba(0,0,0,0.5);
