@@ -43,23 +43,18 @@ h3 {
     color: #ffffff;
 }
 
-/* ---
-KORREKTUR: Flaches Layout
-Keine HintergrÃ¼nde, Schatten oder Padding auf den HauptblÃ¶cken.
---- */
+/* Flaches Layout fÃ¼r Header, Setup-Box und Formular */
 .header,
 .setup-info,
-.form-container,
-.channel-list,
-.settings-container {
-    background-color: transparent; /* ENTFERNT */
+.form-container {
+    background-color: transparent;
     border-radius: 0;
-    padding: 0; /* ENTFERNT (wird von .container gesteuert) */
-    margin-bottom: 30px; /* Als Abstandhalter */
-    box-shadow: none; /* ENTFERNT */
+    padding: 0; 
+    margin-bottom: 30px; 
+    box-shadow: none; 
 }
 
-/* --- Header (jetzt flach) --- */
+/* Header (flach) */
 .header {
     display: flex;
     justify-content: space-between;
@@ -80,16 +75,13 @@ Keine HintergrÃ¼nde, Schatten oder Padding auf den HauptblÃ¶cken.
 }
 .logout-btn:hover { background-color: #444; }
 
-/* ---
-NEU: Lila Verbindungs-Box
-Diese Box ist die einzige Ausnahme und behÃ¤lt ihren Hintergrund.
---- */
+/* Lila Verbindungs-Box */
 .connection-details-box {
     background-color: rgba(138, 67, 247, 0.1);
     border: 1px solid rgba(138, 67, 247, 0.5);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    padding: 20px; /* Padding hier wieder hinzufÃ¼gen */
-    border-radius: var(--border-radius-main); /* Radius hier hinzufÃ¼gen */
+    padding: 20px; 
+    border-radius: var(--border-radius-main); 
 }
 hr.section-divider {
     border: 0;
@@ -108,12 +100,8 @@ hr.section-divider {
     font-family: monospace;
     color: var(--text-primary);
 }
-#server-url {
-    font-weight: bold;
-    color: var(--accent-purple);
-}
 
-/* --- NEU: Copy-Button Styling --- */
+/* Copy-Button Styling */
 .copy-wrapper {
     display: flex;
     align-items: center;
@@ -137,7 +125,7 @@ hr.section-divider {
 .copy-btn:hover { background-color: #444; }
 
 
-/* --- M3U Info Box (nur innere Elemente) --- */
+/* M3U Info Box (innere Elemente) */
 .m3u-info p { margin: 0 0 10px 0; font-size: 0.95em; }
 .m3u-info label {
     display: block;
@@ -159,7 +147,7 @@ hr.section-divider {
     font-size: 14px;
 }
 
-/* --- Login/Setup Container (bleibt eine Karte) --- */
+/* Login/Setup Container (bleibt eine Karte) */
 .login-container {
     max-width: 400px;
     margin: 50px auto 0 auto;
@@ -184,7 +172,7 @@ hr.section-divider {
 .login-container button:hover { background-color: var(--accent-purple-hover); }
 
 
-/* --- Modern Inputs (Global) --- */
+/* Modern Inputs (Global) */
 input[type="password"],
 input[type="text"],
 input[type="number"] {
@@ -207,7 +195,7 @@ input[type="number"]:focus {
 }
 
 
-/* --- NEU: Globale Button-Klassen --- */
+/* Globale Button-Klassen */
 .btn-primary {
     padding: 12px 15px;
     font-size: 16px;
@@ -240,8 +228,8 @@ input[type="number"]:focus {
 }
 
 
-/* --- Channel Form (jetzt nur noch der Button) --- */
-#add-channel-form { /* Dies ist jetzt das Formular IM MODAL */
+/* Channel Form (im Modal) */
+#add-channel-form {
     display: flex;
     flex-direction: column;
     gap: 15px;
@@ -249,21 +237,30 @@ input[type="number"]:focus {
 #add-channel-form button { width: 100%; }
 
 
-/* --- Channel List (flach) --- */
+/* KORREKTUR: Channel List (jetzt eine Karte) */
+.channel-list {
+    background-color: var(--bg-dark-secondary);
+    padding: 20px;
+    border-radius: var(--border-radius-main);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    margin-bottom: 30px;
+}
 ul#channels { list-style-type: none; padding: 0; }
 ul#channels li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px;
-    border-radius: var(--border-radius-small);
-    margin-bottom: 5px;
-    transition: var(--transition-speed);
-    background-color: var(--bg-dark-secondary); /* Hintergrund fÃ¼r jeden Listeneintrag */
+    padding: 12px 0; /* Oben/Unten Padding, kein Seiten-Padding */
+    border-bottom: 1px solid var(--border-color); /* Trenner */
+    margin-bottom: 0;
+    background-color: transparent; /* Keinen Hintergrund auf LI-Ebene */
+}
+ul#channels li:last-child {
+    border-bottom: none; /* Kein Trenner beim letzten Element */
 }
 ul#channels li:hover {
-    background-color: var(--bg-dark-tertiary);
-    transform: translateX(5px);
+    background-color: transparent; /* Kein Hover-Effekt auf LI */
+    transform: none; /* Kein Hover-Effekt auf LI */
 }
 ul#channels li span { font-size: 1.1em; }
 
@@ -285,12 +282,13 @@ ul#channels li button:hover {
 .error { color: var(--accent-red); }
 
 
-/* --- Settings Section (flach) --- */
+/* KORREKTUR: Settings Section (jetzt eine Karte) */
 .settings-container {
     background-color: var(--bg-dark-secondary);
-    padding: 20px; /* Padding hier wieder hinzufÃ¼gen */
-    border-radius: var(--border-radius-main); /* Radius hier hinzufÃ¼gen */
+    padding: 20px; 
+    border-radius: var(--border-radius-main); 
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    margin-bottom: 30px;
 }
 #settings-form .form-row {
     display: flex;
@@ -319,11 +317,49 @@ ul#channels li button:hover {
 #settings-status { font-size: 14px; margin-top: 10px; text-align: right; }
 
 
-/* --- Toggle Switch CSS --- */
-/* ... (unverÃ¤ndert) ... */
+/* KORREKTUR: Toggle Switch CSS wieder eingefÃ¼gt */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+}
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #555;
+    transition: var(--transition-speed);
+    border-radius: 28px;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: var(--transition-speed);
+    border-radius: 50%;
+}
+input:checked + .slider {
+    background-color: var(--accent-purple);
+}
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
 
 
-/* --- Modal Styles --- */
+/* Modal Styles */
 .modal {
     display: none; 
     position: fixed; 
