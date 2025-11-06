@@ -246,22 +246,28 @@ input[type="number"]:focus {
     margin-bottom: 30px;
 }
 ul#channels { list-style-type: none; padding: 0; }
+
+/* --- HIER SIND DIE ÄNDERUNGEN FÜR DEN HOVER-EFFEKT --- */
 ul#channels li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 0; /* Oben/Unten Padding, kein Seiten-Padding */
+    padding: 12px 15px; /* Padding links/rechts hinzugefügt */
     border-bottom: 1px solid var(--border-color); /* Trenner */
     margin-bottom: 0;
-    background-color: transparent; /* Keinen Hintergrund auf LI-Ebene */
+    background-color: transparent; 
+    border-radius: var(--border-radius-small); /* Ecken standardmäßig rund */
+    transition: var(--transition-speed); /* Übergang für Hover */
 }
 ul#channels li:last-child {
     border-bottom: none; /* Kein Trenner beim letzten Element */
 }
 ul#channels li:hover {
-    background-color: transparent; /* Kein Hover-Effekt auf LI */
-    transform: none; /* Kein Hover-Effekt auf LI */
+    background-color: var(--bg-dark-tertiary); /* Sanfter Hover-Effekt */
+    transform: scale(1.01); /* Leichter Zoom-Effekt */
 }
+/* --- ENDE DER ÄNDERUNGEN --- */
+
 ul#channels li span { font-size: 1.1em; }
 
 ul#channels li button { /* Delete Button */
