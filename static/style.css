@@ -1,234 +1,286 @@
 /* --- Global Styles --- */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f0f2f5;
-    color: #1c1e21;
-    margin: 0;
-    padding: 20px;
-}
-.container {
-    max-width: 600px;
-    margin: 0 auto;
-    background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    padding: 20px;
-}
-h1 { color: #8a43f7; }
-h3 { 
-    border-bottom: 2px solid #f0f2f5; 
-    padding-bottom: 5px; 
-    margin-top: 25px; /* Added margin */
-    margin-bottom: 15px;
+:root {
+    --bg-dark-primary: #181818;   /* Netflix-Dark */
+    --bg-dark-secondary: #282828; /* Leichteres Grau fÃ¼r Karten */
+    --bg-dark-tertiary: #333333; /* FÃ¼r Inputs und Hover */
+    --text-primary: #E0E0E0;
+    --text-secondary: #AAAAAA;
+    --accent-purple: #8a43f7;
+    --accent-purple-hover: #7b3dcf;
+    --accent-green: #30a44c;
+    --accent-green-hover: #2b7d3d;
+    --accent-red: #D93F3F;
+    --accent-red-hover: #E03030;
+    --border-color: #444444;
+    --border-radius-main: 12px;
+    --border-radius-small: 8px;
+    --transition-speed: 0.2s ease-out;
 }
 
-/* --- Header with Logout --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-dark-primary);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0; /* Padding wird vom Container Ã¼bernommen */
+}
+
+/* ---
+NEU: Der Haupt-Container
+Er ist jetzt flÃ¼ssig, aber mit einer maximalen Breite.
+Er ist UNSICHTBAR (kein BG, kein Schatten). Er dient nur als "Gutter".
+--- */
+.container {
+    max-width: 1400px; /* Viel breiter als 600px */
+    margin: 0 auto;
+    padding: 20px; /* Setzt den seitlichen Abstand (Gutter) */
+    /* KEIN background-color, KEIN box-shadow */
+}
+
+h1 { 
+    color: var(--accent-purple); 
+    font-weight: 700;
+}
+h3 { 
+    border-bottom: 1px solid var(--border-color); 
+    padding-bottom: 8px; 
+    margin-top: 10px; /* Reduziert, da im Padding der Karte */
+    margin-bottom: 15px;
+    color: #ffffff;
+}
+
+/* ---
+NEU: Card-Layout
+Alle direkten Kinder des .container werden zu "Karten".
+--- */
+.header,
+.setup-info,
+.form-container,
+.channel-list,
+.settings-container {
+    background-color: var(--bg-dark-secondary);
+    border-radius: var(--border-radius-main);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* --- Header (jetzt eine Karte) --- */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 2px solid #f0f2f5;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
+    /* border-bottom, padding-bottom, etc. werden von der Card-Regel Ã¼bernommen */
 }
 .header h1 {
     margin: 0;
     padding: 0;
     border: none;
-    margin-top: 0; /* Override h1 margin */
+    margin-top: 0;
 }
 .logout-btn {
-    background-color: #f0f2f5;
-    color: #333;
+    background-color: var(--bg-dark-tertiary);
+    color: var(--text-primary);
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-small);
     text-decoration: none;
     font-weight: 600;
     font-size: 14px;
-    transition: background-color 0.2s;
+    transition: var(--transition-speed);
 }
 .logout-btn:hover {
-    background-color: #e4e6eb;
+    background-color: #444;
+    transform: translateY(-1px);
 }
 
-/* --- Setup Info Box (XC) --- */
-.setup-info {
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 10px 15px;
-}
-.setup-info h3 {
-    margin: 0 0 10px 0;
-    border: none;
-    font-size: 1.1em;
-    color: #333;
-}
-.setup-info ul {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-}
-.setup-info li {
-    margin-bottom: 5px;
-}
+/* --- Setup Info Box (jetzt eine Karte) --- */
+.setup-info h3 { margin: 0 0 10px 0; border: none; }
+.setup-info ul { list-style-type: none; padding: 0; margin: 0; }
+.setup-info li { margin-bottom: 5px; }
 .setup-info code {
-    background-color: #e4e6eb;
+    background-color: var(--bg-dark-tertiary);
     padding: 2px 5px;
     border-radius: 4px;
     font-family: monospace;
+    color: var(--text-primary);
 }
 #server-url {
     font-weight: bold;
-    color: #8a43f7;
+    color: var(--accent-purple);
 }
 
-/* --- M3U Info Box (ANGEPASST) --- */
+/* --- M3U Info Box (Spezial-Karte) --- */
 .m3u-info {
-    margin-top: 15px; 
-    border-color: #d6bbfb; 
-    background-color: #fdfbff;
+    /* Diese Regeln ÃœBERSCHREIBEN die .setup-info-Card-Regeln */
+    background-color: rgba(138, 67, 247, 0.1);
+    border: 1px solid rgba(138, 67, 247, 0.5);
 }
-.m3u-info p {
-    margin: 0 0 10px 0;
-    font-size: 0.95em;
-}
+.m3u-info p { margin: 0 0 10px 0; font-size: 0.95em; }
 .m3u-info label {
     display: block;
     font-size: 0.85em;
     font-weight: 600;
     margin-top: 8px;
-    color: #555;
+    color: var(--text-secondary);
 }
 .m3u-info input[type="text"] {
     width: calc(100% - 20px);
     padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background-color: #f9f9f9;
+    border: 1px solid #555;
+    border-radius: var(--border-radius-small);
+    background-color: var(--bg-dark-tertiary);
+    color: var(--text-primary);
     font-family: monospace;
-    margin-top: 2px; /* Kleiner Abstand zum Label */
+    margin-top: 2px;
 }
 
-
-/* --- Login/Setup Container --- */
+/* ---
+NEU: Login/Setup Container
+Wird auf den Login-Seiten verwendet. Ist SEPARAT vom .container.
+Bekommt jetzt auch den Card-Look, behÃ¤lt aber seine max-width.
+--- */
 .login-container {
     max-width: 400px;
+    margin: 50px auto 0 auto;
     text-align: center;
-    margin-top: 50px;
+    /* Card-Stile Ã¼bertragen */
+    background-color: var(--bg-dark-secondary);
+    border-radius: var(--border-radius-main);
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 .login-container form {
     display: flex;
     flex-direction: column;
     gap: 15px;
 }
-.login-container input[type="password"] {
+
+/* --- Modern Inputs (Global) --- */
+input[type="password"],
+input[type="text"],
+input[type="number"] {
     padding: 12px;
-    border: 1px solid #ccd0d5;
-    border-radius: 6px;
+    border: 1px solid #555;
+    border-radius: var(--border-radius-small);
     font-size: 16px;
     width: 100%;
     box-sizing: border-box;
+    background-color: var(--bg-dark-tertiary);
+    color: var(--text-primary);
+    transition: var(--transition-speed);
 }
-.login-container button {
+input[type="password"]:focus,
+input[type="text"]:focus,
+input[type[="number"]:focus {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 8px rgba(138, 67, 247, 0.5);
+    outline: none;
+}
+
+/* --- Modern Buttons (Global) --- */
+button, .login-container button {
     padding: 12px 15px;
     font-size: 16px;
-    background-color: #8a43f7;
+    background-color: var(--accent-purple);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--border-radius-small);
     cursor: pointer;
     font-weight: 600;
+    transition: var(--transition-speed);
 }
-.login-container button:hover {
-    background-color: #7b3dcf;
+button:hover, .login-container button:hover {
+    background-color: var(--accent-purple-hover);
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* --- Flash Messages --- */
 .flash-error {
-    background-color: #ffebe9;
-    color: #c9302c;
+    background-color: rgba(217, 63, 63, 0.1);
+    color: var(--accent-red);
     padding: 10px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-small);
+    border: 1px solid var(--accent-red);
 }
 .flash-success {
-    background-color: #e6ffed;
-    color: #2b7d3d;
+    background-color: rgba(48, 164, 76, 0.1);
+    color: var(--accent-green);
     padding: 10px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-small);
+    border: 1px solid var(--accent-green);
 }
 
-/* --- Channel Form --- */
+/* --- Channel Form (jetzt eine Karte) --- */
 .form-container { margin-bottom: 20px; }
-#add-channel-form { display: flex; }
+#add-channel-form { display: flex; gap: 10px; }
 #channel-name {
     flex-grow: 1;
-    padding: 10px;
-    border: 1px solid #ccd0d5;
-    border-radius: 6px;
-    font-size: 16px;
+    margin: 0;
 }
 #add-channel-form button {
-    padding: 10px 15px;
-    margin-left: 10px;
-    font-size: 16px;
-    background-color: #8a43f7;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+    margin-left: 0;
 }
-#add-channel-form button:hover { background-color: #7b3dcf; }
 
-/* --- Channel List --- */
+/* --- Channel List (jetzt eine Karte) --- */
 ul#channels { list-style-type: none; padding: 0; }
 ul#channels li {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-small);
+    margin-bottom: 5px;
+    transition: var(--transition-speed);
 }
-ul#channels li:nth-child(odd) { background-color: #f7f8fa; }
+ul#channels li:nth-child(odd) { background-color: rgba(0,0,0,0.1); }
+ul#channels li:hover {
+    background-color: var(--bg-dark-tertiary);
+    transform: translateX(5px);
+}
 ul#channels li span { font-size: 1.1em; }
-ul#channels li button {
-    background-color: #fa3e3e;
+ul#channels li button { /* Delete Button */
+    background-color: var(--accent-red);
     color: white;
     border: none;
-    border-radius: 4px;
-    padding: 5px 8px;
+    border-radius: 6px;
+    padding: 5px 10px;
     cursor: pointer;
     font-size: 12px;
+    font-weight: 600;
 }
-ul#channels li button:hover { background-color: #e03030; }
-.error { color: #fa3e3e; }
+ul#channels li button:hover { 
+    background-color: var(--accent-red-hover); 
+    transform: scale(1.05);
+}
+.error { color: var(--accent-red); }
 
 
-/* --- Settings Section --- */
-.settings-container {
-    margin-top: 30px;
-}
+/* --- Settings Section (jetzt eine Karte) --- */
+.settings-container { margin-bottom: 20px; }
 #settings-form .form-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #f0f2f5;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+#settings-form .form-row:last-of-type {
+    border-bottom: none;
 }
 #settings-form .form-row label {
     font-weight: 500;
 }
 #settings-form input[type="text"],
-#settings-form input[type="password"],
-#settings-form input[type="number"] {
-    padding: 8px 10px;
-    border: 1px solid #ccd0d5;
-    border-radius: 6px;
-    font-size: 14px;
+#settings-form input[type="password"] {
     width: 250px;
+    font-size: 14px;
+    padding: 8px 10px;
 }
 #settings-form input[type="number"] {
-    width: 60px;
+    width: 70px;
+    font-size: 14px;
+    padding: 8px 10px;
 }
 .form-footer {
     display: flex;
@@ -237,7 +289,7 @@ ul#channels li button:hover { background-color: #e03030; }
     margin-top: 20px;
 }
 .form-footer a {
-    color: #8a43f7;
+    color: var(--accent-purple);
     text-decoration: none;
     font-size: 14px;
 }
@@ -245,16 +297,10 @@ ul#channels li button:hover { background-color: #e03030; }
     text-decoration: underline;
 }
 #save-settings-btn {
-    padding: 10px 15px;
-    font-size: 16px;
-    background-color: #2b7d3d;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+    background-color: var(--accent-green);
 }
 #save-settings-btn:hover {
-    background-color: #256a34;
+    background-color: var(--accent-green-hover);
 }
 #settings-status {
     font-size: 14px;
@@ -269,20 +315,13 @@ ul#channels li button:hover { background-color: #e03030; }
     width: 50px;
     height: 28px;
 }
-.switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+.switch input { opacity: 0; width: 0; height: 0; }
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #555;
+    transition: var(--transition-speed);
     border-radius: 28px;
 }
 .slider:before {
@@ -293,11 +332,11 @@ ul#channels li button:hover { background-color: #e03030; }
     left: 4px;
     bottom: 4px;
     background-color: white;
-    transition: .4s;
+    transition: var(--transition-speed);
     border-radius: 50%;
 }
 input:checked + .slider {
-    background-color: #8a43f7;
+    background-color: var(--accent-purple);
 }
 input:checked + .slider:before {
     transform: translateX(22px);
@@ -308,49 +347,47 @@ input:checked + .slider:before {
     display: none; 
     position: fixed; 
     z-index: 100; 
-    left: 0;
-    top: 0;
-    width: 100%; 
-    height: 100%; 
+    left: 0; top: 0;
+    width: 100%; height: 100%; 
     overflow: auto; 
-    background-color: rgba(0,0,0,0.6);
+    background-color: rgba(0,0,0,0.8);
+    backdrop-filter: blur(5px);
 }
 .modal-content {
-    background-color: #fefefe;
+    background-color: var(--bg-dark-secondary);
+    color: var(--text-primary);
     margin: 10% auto; 
     padding: 20px 30px;
-    border: 1px solid #888;
+    border: 1px solid var(--border-color);
     width: 80%;
     max-width: 700px;
-    border-radius: 8px;
+    border-radius: var(--border-radius-main);
     position: relative;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
 }
 .modal-content h2 {
     margin-top: 0;
-    color: #8a43f7;
+    color: var(--accent-purple);
 }
-.modal-content ol li {
-    margin-bottom: 10px;
-}
+.modal-content ol li { margin-bottom: 10px; }
 .modal-content code {
-    background-color: #f0f2f5;
+    background-color: var(--bg-dark-tertiary);
     padding: 2px 5px;
     border-radius: 4px;
 }
-.modal-content a {
-    color: #8a43f7;
-}
+.modal-content a { color: var(--accent-purple); }
 .close-btn {
-    color: #aaa;
+    color: var(--text-secondary);
     position: absolute;
     top: 10px;
     right: 20px;
     font-size: 28px;
     font-weight: bold;
+    transition: var(--transition-speed);
 }
 .close-btn:hover,
 .close-btn:focus {
-    color: black;
+    color: #ffffff;
     text-decoration: none;
     cursor: pointer;
 }
