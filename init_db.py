@@ -7,7 +7,7 @@ cursor = conn.cursor()
 
 print(f"Initializing database at {DB_PATH}")
 
-# --- Managed Channels (von dir gepflegt) ---
+# --- 1. Create tables if they don't exist (unverändert) ---
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS channels (
 )
 ''')
 
-# --- Settings (Passwort, API-Keys) ---
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY NOT NULL,
@@ -23,22 +22,16 @@ CREATE TABLE IF NOT EXISTS settings (
 )
 ''')
 
-# --- Live Streams (vom Poller befüllt) ---
-# NEU: Spalten epg_channel_id, stream_title, stream_game
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS live_streams (
     id INTEGER PRIMARY KEY,
     login_name TEXT NOT NULL UNIQUE,
-    epg_channel_id TEXT,
     display_name TEXT NOT NULL,
     is_live BOOLEAN NOT NULL DEFAULT 0,
-    stream_title TEXT,
-    stream_game TEXT,
     category TEXT NOT NULL DEFAULT 'Twitch Live'
 )
 ''')
 
-# --- VOD Streams (vom Poller befüllt) ---
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS vod_streams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,13 +43,35 @@ CREATE TABLE IF NOT EXISTS vod_streams (
 )
 ''')
 
-# --- Add default settings (if they don't exist) ---
+# --- 2. NEU: Migrations-Block (fügt EPG-Spalten hinzu, falls sie fehlen) ---
+print("Running database migrations (if needed)...")
+try:
+    cursor.execute("ALTER TABLE live_streams ADD COLUMN epg_channel_id TEXT")
+    print("  > Added 'epg_channel_id' column to live_streams.")
+except sqlite3.OperationalError:
+    pass # Spalte existiert bereits, alles gut
+
+try:
+    cursor.execute("ALTER TABLE live_streams ADD COLUMN stream_title TEXT")
+    print("  > Added 'stream_title' column to live_streams.")
+except sqlite3.OperationalError:
+    pass # Spalte existiert bereits, alles gut
+
+try:
+    cursor.execute("ALTER TABLE live_streams ADD COLUMN stream_game TEXT")
+    print("  > Added 'stream_game' column to live_streams.")
+except sqlite3.OperationalError:
+    pass # Spalte existiert bereits, alles gut
+# --- Ende Migrations-Block ---
+
+
+# --- 3. Add default settings (unverändert) ---
 default_settings = {
     'vod_enabled': 'false',
     'twitch_client_id': '',
     'twitch_client_secret': '',
     'vod_count_per_channel': '5',
-    'm3u_enabled': 'false' # Diese Einstellung von V6 bleibt erhalten
+    'm3u_enabled': 'false'
 }
 
 for key, value in default_settings.items():
@@ -64,4 +79,4 @@ for key, value in default_settings.items():
 
 conn.commit()
 conn.close()
-print(f"Database {DB_PATH} is ready.")
+print(f"Database {DB_PATH} is ready and migrated.")
