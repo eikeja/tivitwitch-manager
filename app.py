@@ -86,9 +86,11 @@ def check_web_ui_auth():
         '/static/',
         '/login',
         '/setup',
-        '/player_api.php',
-        '/live/',
-        '/movie/'
+        '/player_api.php', # XC API
+        '/live/',           # XC Live Stream
+        '/movie/',          # XC VOD Stream
+        '/playlist.m3u',    # NEU: M3U Playlist
+        '/play_live_m3u/'   # NEU: M3U Live Stream
     ]
     
     for path in public_paths:
@@ -117,11 +119,10 @@ def generate_stream_data(stream_fd):
     finally:
         stream_fd.close()
 
-# --- Live Streams (Bleibt ein Proxy, das ist korrekt so) ---
+# --- XC Live Stream (unverändert) ---
 @app.route('/live/<username>/<password>/<int:stream_id>')
 @app.route('/live/<username>/<password>/<int:stream_id>.<ext>')
 def play_live_stream_xc(username, password, stream_id, ext=None):
-    """Handles Xtream Codes /live/ call."""
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
     
@@ -146,13 +147,10 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
         
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-#
-# --- KORREKTUR: VOD STREAMS (Wird zum Redirect) ---
-#
+# --- XC VOD Stream (unverändert) ---
 @app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
-    """Handles Xtream Codes /movie/ call."""
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
 
@@ -172,19 +170,76 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
             print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
-        # NEUE LOGIK: Stream-URL holen statt Daten zu proxien
         stream_url = streams["best"].url
-        
-        # TiviMate an die echte Twitch-URL weiterleiten
         return redirect(stream_url)
 
     except Exception as e:
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
 
+# --- NEU: M3U Live Stream Endpoint (ohne User/Pass in URL) ---
+@app.route('/play_live_m3u/<int:stream_id>')
+def play_live_m3u(stream_id):
+    """Handles M3U /play_live_m3u/ call."""
+    conn = get_db_connection()
+    channel = conn.execute('SELECT login_name FROM live_streams WHERE id = ?', (stream_id,)).fetchone()
+    conn.close()
+    
+    if not channel:
+        return "Stream not found", 404
+        
+    login_name = channel['login_name']
+    
+    try:
+        streams = streamlink_session.streams(f'twitch.tv/{login_name}')
+        if "best" not in streams:
+            print(f"[Play-Live-M3U]: Stream not found for {login_name} (ID: {stream_id})")
+            return "Stream offline or not found", 404
+        stream_fd = streams["best"].open()
+    except Exception as e:
+        print(f"[Play-Live-M3U] ERROR: {e}")
+        return "Error opening stream", 500
+        
+    return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-# --- TIVIMATE XTREAM CODES API ENDPOINT (Keine Änderungen hier) ---
 
+# --- NEU: M3U Playlist Endpoint ---
+@app.route('/playlist.m3u')
+def generate_m3u():
+    """Generates the M3U playlist dynamically."""
+    password = request.args.get('password', '')
+    
+    # Prüfe das Passwort
+    if not check_xc_auth(None, password):
+        return "Invalid password", 401
+        
+    conn = get_db_connection()
+    
+    # Prüfe, ob M3U-Funktion aktiviert ist
+    m3u_enabled = conn.execute("SELECT value FROM settings WHERE key = 'm3u_enabled'").fetchone()
+    if not (m3u_enabled and m3u_enabled['value'] == 'true'):
+        return "M3U playlist feature is disabled on the server.", 404
+        
+    # Hole Live-Streams aus der DB
+    streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
+    conn.close()
+    
+    m3u_content = ["#EXTM3U"]
+    
+    for stream in streams:
+        # Erstelle den M3U-Eintrag
+        channel_name = stream['display_name']
+        tvg_id = stream['login_name']
+        stream_url = f"{HOST_URL}/play_live_m3u/{stream['id']}"
+        
+        m3u_content.append(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{channel_name}" tvg-logo="" group-title="Twitch Live",{channel_name}')
+        m3u_content.append(stream_url)
+
+    # Gib die Playlist als Text zurück
+    return Response('\n'.join(m3u_content), mimetype='audio/mpegurl')
+
+
+# --- TIVIMATE XTREAM CODES API ENDPOINT (unverändert) ---
 @app.route('/player_api.php', methods=['GET', 'POST'])
 def player_api():
     username = request.args.get('username', 'default')
@@ -194,7 +249,7 @@ def player_api():
     if not HOST_URL:
         return "HOST_URL environment variable is not set on the server.", 500
 
-    conn = get_db_connection() # DB-Verbindung am Anfang öffnen
+    conn = get_db_connection() 
 
     # --- 1. Authentication ---
     if action == 'get_user_info' or action == '':
@@ -205,7 +260,7 @@ def player_api():
                 if port_str.isdigit():
                     port = port_str
 
-            conn.close() # Verbindung hier schließen
+            conn.close() 
             return jsonify({
                 "user_info": {
                     "username": username,
@@ -228,23 +283,23 @@ def player_api():
                 }
             })
         else:
-            conn.close() # Verbindung hier schließen
+            conn.close() 
             return jsonify({"user_info": {"auth": 0, "status": "Invalid Credentials"}})
 
     if not check_xc_auth(username, password):
-        conn.close() # Verbindung hier schließen
+        conn.close() 
         return "Invalid credentials", 401
 
     
     # --- 2. Live Categories ---
     if action == 'get_live_categories':
-        conn.close() # Verbindung hier schließen
+        conn.close() 
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
-    # --- 3. Live Streams (Funktioniert) ---
+    # --- 3. Live Streams ---
     if action == 'get_live_streams':
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
-        conn.close() # Verbindung hier schließen
+        conn.close() 
         
         live_streams_json = []
         for stream in streams:
@@ -263,7 +318,7 @@ def player_api():
         
         return jsonify(live_streams_json)
 
-    # --- VOD-Kategorie-Map (Korrekt) ---
+    # --- VOD-Kategorie-Map ---
     categories_raw = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
     category_map = {row['category']: str(i + 1) for i, row in enumerate(categories_raw)}
     
@@ -411,6 +466,10 @@ def save_settings():
                      ('twitch_client_id', data.get('twitch_client_id', '')))
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
                      ('vod_count_per_channel', str(data.get('vod_count_per_channel', '5'))))
+        
+        # NEU: M3U-Einstellung speichern
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
+                     ('m3u_enabled', str(data.get('m3u_enabled', 'false')).lower()))
         
         if data.get('twitch_client_secret'):
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 

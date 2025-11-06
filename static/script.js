@@ -1,19 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- NEW: Dynamic XC Setup Info ---
-    function setDynamicSetupUrl() {
+    // --- Dynamic Setup Infos ---
+    function setDynamicUrls() {
+        const host = window.location.host; 
+        const protocol = window.location.protocol; 
+        const baseUrl = `${protocol}//${host}`;
+        
+        // XC URL
         const serverUrlElement = document.getElementById('server-url');
         if (serverUrlElement) {
-            const host = window.location.host; 
-            const protocol = window.location.protocol; 
-            const serverUrl = `${protocol}//${host}`;
-            serverUrlElement.textContent = serverUrl;
+            serverUrlElement.textContent = baseUrl;
+        }
+        
+        // NEU: M3U URL
+        const m3uUrlElement = document.getElementById('m3u-url-display');
+        if (m3uUrlElement) {
+            m3uUrlElement.value = `${baseUrl}/playlist.m3u?password=YOUR_PASSWORD_HERE`;
         }
     }
-    setDynamicSetupUrl();
+    setDynamicUrls();
 
     
-    // --- Channel Management (unchanged) ---
+    // --- Channel Management (unverändert) ---
     const form = document.getElementById('add-channel-form');
     const channelNameInput = document.getElementById('channel-name');
     const channelList = document.getElementById('channels');
@@ -57,25 +65,19 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const channelName = channelNameInput.value.trim();
             if (channelName === '') return;
-            
             errorMessage.textContent = ''; 
-
             try {
                 const response = await fetch('/api/channels', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: channelName })
                 });
-                
                 const result = await response.json();
-
                 if (!response.ok) {
                     throw new Error(result.error || 'Unknown error');
                 }
-                
                 channelNameInput.value = ''; 
                 fetchChannels(); 
-                
             } catch (error) {
                 errorMessage.textContent = error.message;
             }
@@ -86,31 +88,29 @@ document.addEventListener('DOMContentLoaded', () => {
         channelList.addEventListener('click', async (e) => {
             if (e.target.classList.contains('delete-btn')) {
                 const channelId = e.target.dataset.id;
-                
                 if (!confirm('Are you sure you want to delete this channel?')) return;
-
                 try {
                     const response = await fetch(`/api/channels/${channelId}`, {
                         method: 'DELETE'
                     });
-                    
                     if (!response.ok) throw new Error('Error deleting channel');
-                    
                     fetchChannels(); 
-                    
                 } catch (error) {
                     alert(error.message);
                 }
             }
         });
-        
         fetchChannels();
     }
     
     
-    // --- Settings Management (unchanged) ---
+    // --- Settings Management (angepasst) ---
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
+        // NEUE ELEMENTE
+        const m3uEnabled = document.getElementById('setting-m3u-enabled');
+        const m3uInfoBox = document.getElementById('m3u-setup-info');
+        
         const vodEnabled = document.getElementById('setting-vod-enabled');
         const clientId = document.getElementById('setting-client-id');
         const clientSecret = document.getElementById('setting-client-secret');
@@ -124,15 +124,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok) throw new Error('Failed to load settings');
                 const settings = await response.json();
                 
+                // Setze VOD-Werte
                 vodEnabled.checked = settings.vod_enabled === 'true';
                 clientId.value = settings.twitch_client_id || '';
                 vodCount.value = settings.vod_count_per_channel || '5';
+                
+                // NEU: Setze M3U-Werte
+                m3uEnabled.checked = settings.m3u_enabled === 'true';
+                // Zeige die M3U-Info-Box an, wenn der Schalter an ist
+                m3uInfoBox.style.display = m3uEnabled.checked ? 'block' : 'none';
                 
             } catch (error) {
                 settingsStatus.textContent = error.message;
                 settingsStatus.style.color = '#fa3e3e';
             }
         }
+        
+        // NEU: Event listener, um die Box sofort anzuzeigen/zu verstecken
+        m3uEnabled.addEventListener('change', () => {
+             m3uInfoBox.style.display = m3uEnabled.checked ? 'block' : 'none';
+        });
         
         saveBtn.addEventListener('click', async () => {
             settingsStatus.textContent = 'Saving...';
@@ -142,7 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 vod_enabled: vodEnabled.checked,
                 twitch_client_id: clientId.value,
                 twitch_client_secret: clientSecret.value,
-                vod_count_per_channel: vodCount.value
+                vod_count_per_channel: vodCount.value,
+                m3u_enabled: m3uEnabled.checked // NEU
             };
 
             try {
@@ -168,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadSettings();
     }
 
-    // --- Modal Logic (unchanged) ---
+    // --- Modal Logic (unverändert) ---
     const modal = document.getElementById('howto-modal');
     const openBtn = document.getElementById('open-modal-btn');
     const closeBtn = document.querySelector('.modal .close-btn');

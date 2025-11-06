@@ -51,7 +51,7 @@ h3 {
     background-color: #e4e6eb;
 }
 
-/* --- NEW: Setup Info Box (replaces playlist-url) --- */
+/* --- Setup Info Box (XC) --- */
 .setup-info {
     background-color: #f9f9f9;
     border: 1px solid #ddd;
@@ -81,6 +81,25 @@ h3 {
 #server-url {
     font-weight: bold;
     color: #8a43f7;
+}
+
+/* --- NEU: M3U Info Box --- */
+.m3u-info {
+    margin-top: 15px; /* Abstand zur XC Box */
+    border-color: #d6bbfb; /* Leichte lila-Färbung */
+    background-color: #fdfbff;
+}
+.m3u-info p {
+    margin: 0 0 10px 0;
+    font-size: 0.95em;
+}
+.m3u-info input[type="text"] {
+    width: calc(100% - 20px);
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+    font-family: monospace;
 }
 
 

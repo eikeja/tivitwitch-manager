@@ -51,7 +51,8 @@ default_settings = {
     'vod_enabled': 'false',
     'twitch_client_id': '',
     'twitch_client_secret': '',
-    'vod_count_per_channel': '5'
+    'vod_count_per_channel': '5',
+    'm3u_enabled': 'false' # NEUE EINSTELLUNG
 }
 
 for key, value in default_settings.items():
