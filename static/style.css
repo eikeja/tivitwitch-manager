@@ -22,19 +22,13 @@ body {
     background-color: var(--bg-dark-primary);
     color: var(--text-primary);
     margin: 0;
-    padding: 0; /* Padding wird vom Container Ã¼bernommen */
+    padding: 0; 
 }
 
-/* ---
-NEU: Der Haupt-Container
-Er ist jetzt flÃ¼ssig, aber mit einer maximalen Breite.
-Er ist UNSICHTBAR (kein BG, kein Schatten). Er dient nur als "Gutter".
---- */
 .container {
-    max-width: 1400px; /* Viel breiter als 600px */
+    max-width: 1400px; 
     margin: 0 auto;
-    padding: 20px; /* Setzt den seitlichen Abstand (Gutter) */
-    /* KEIN background-color, KEIN box-shadow */
+    padding: 20px; 
 }
 
 h1 { 
@@ -44,33 +38,38 @@ h1 {
 h3 { 
     border-bottom: 1px solid var(--border-color); 
     padding-bottom: 8px; 
-    margin-top: 10px; /* Reduziert, da im Padding der Karte */
+    margin-top: 10px; 
     margin-bottom: 15px;
     color: #ffffff;
 }
 
 /* ---
-NEU: Card-Layout
-Alle direkten Kinder des .container werden zu "Karten".
+KORREKTUR: Flaches Layout
+Hintergrund und Schatten wurden entfernt.
 --- */
 .header,
 .setup-info,
 .form-container,
 .channel-list,
 .settings-container {
-    background-color: var(--bg-dark-secondary);
+    /* background-color: var(--bg-dark-secondary); */ /* ENTFERNT */
     border-radius: var(--border-radius-main);
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); */ /* ENTFERNT */
 }
 
-/* --- Header (jetzt eine Karte) --- */
+/* --- Header --- */
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    /* border-bottom, padding-bottom, etc. werden von der Card-Regel Ã¼bernommen */
+    /* NEU: Da die .header-Karte keinen Hintergrund mehr hat, 
+      fÃ¼gen wir der Ãœberschrift einen visuellen "Karten"-Look hinzu.
+      Gleiches gilt fÃ¼r die anderen Sektionen.
+    */
+    background-color: var(--bg-dark-secondary);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 .header h1 {
     margin: 0;
@@ -93,7 +92,25 @@ Alle direkten Kinder des .container werden zu "Karten".
     transform: translateY(-1px);
 }
 
-/* --- Setup Info Box (jetzt eine Karte) --- */
+/* ---
+NEU: Lila Verbindungs-Box
+Diese Regel Ã¼berschreibt das flache Layout und gibt NUR DIESER Box einen Hintergrund.
+--- */
+.connection-details-box {
+    background-color: rgba(138, 67, 247, 0.1);
+    border: 1px solid rgba(138, 67, 247, 0.5);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+/* NEU: Trenner fÃ¼r M3U-Sektion */
+hr.section-divider {
+    border: 0;
+    height: 1px;
+    background: rgba(138, 67, 247, 0.5);
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+
+/* --- Setup Info Box (Restliche Logik) --- */
 .setup-info h3 { margin: 0 0 10px 0; border: none; }
 .setup-info ul { list-style-type: none; padding: 0; margin: 0; }
 .setup-info li { margin-bottom: 5px; }
@@ -109,12 +126,7 @@ Alle direkten Kinder des .container werden zu "Karten".
     color: var(--accent-purple);
 }
 
-/* --- M3U Info Box (Spezial-Karte) --- */
-.m3u-info {
-    /* Diese Regeln ÃœBERSCHREIBEN die .setup-info-Card-Regeln */
-    background-color: rgba(138, 67, 247, 0.1);
-    border: 1px solid rgba(138, 67, 247, 0.5);
-}
+/* M3U Info Box (jetzt nur noch fÃ¼r innere Elemente) */
 .m3u-info p { margin: 0 0 10px 0; font-size: 0.95em; }
 .m3u-info label {
     display: block;
@@ -134,16 +146,11 @@ Alle direkten Kinder des .container werden zu "Karten".
     margin-top: 2px;
 }
 
-/* ---
-NEU: Login/Setup Container
-Wird auf den Login-Seiten verwendet. Ist SEPARAT vom .container.
-Bekommt jetzt auch den Card-Look, behÃ¤lt aber seine max-width.
---- */
+/* --- Login/Setup Container --- */
 .login-container {
     max-width: 400px;
     margin: 50px auto 0 auto;
     text-align: center;
-    /* Card-Stile Ã¼bertragen */
     background-color: var(--bg-dark-secondary);
     border-radius: var(--border-radius-main);
     padding: 20px;
@@ -154,6 +161,23 @@ Bekommt jetzt auch den Card-Look, behÃ¤lt aber seine max-width.
     flex-direction: column;
     gap: 15px;
 }
+.login-container button {
+    padding: 12px 15px;
+    font-size: 16px;
+    background-color: var(--accent-purple);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    font-weight: 600;
+    transition: var(--transition-speed);
+}
+.login-container button:hover {
+    background-color: var(--accent-purple-hover);
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
 
 /* --- Modern Inputs (Global) --- */
 input[type="password"],
@@ -177,23 +201,6 @@ input[type="number"]:focus {
     outline: none;
 }
 
-/* --- Modern Buttons (Global) --- */
-button, .login-container button {
-    padding: 12px 15px;
-    font-size: 16px;
-    background-color: var(--accent-purple);
-    color: white;
-    border: none;
-    border-radius: var(--border-radius-small);
-    cursor: pointer;
-    font-weight: 600;
-    transition: var(--transition-speed);
-}
-button:hover, .login-container button:hover {
-    background-color: var(--accent-purple-hover);
-    transform: scale(1.02);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
 
 /* --- Flash Messages --- */
 .flash-error {
@@ -211,18 +218,42 @@ button:hover, .login-container button:hover {
     border: 1px solid var(--accent-green);
 }
 
-/* --- Channel Form (jetzt eine Karte) --- */
-.form-container { margin-bottom: 20px; }
+/* --- Channel Form --- */
+.form-container { 
+    /* NEU: Hintergrund fÃ¼r flaches Design */
+    background-color: var(--bg-dark-secondary);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
 #add-channel-form { display: flex; gap: 10px; }
 #channel-name {
     flex-grow: 1;
     margin: 0;
 }
 #add-channel-form button {
+    padding: 12px 15px;
+    font-size: 16px;
+    background-color: var(--accent-purple);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    font-weight: 600;
+    transition: var(--transition-speed);
     margin-left: 0;
 }
+#add-channel-form button:hover {
+    background-color: var(--accent-purple-hover);
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
 
-/* --- Channel List (jetzt eine Karte) --- */
+
+/* --- Channel List --- */
+.channel-list {
+    /* NEU: Hintergrund fÃ¼r flaches Design */
+    background-color: var(--bg-dark-secondary);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
 ul#channels { list-style-type: none; padding: 0; }
 ul#channels li {
     display: flex;
@@ -239,15 +270,18 @@ ul#channels li:hover {
     transform: translateX(5px);
 }
 ul#channels li span { font-size: 1.1em; }
-ul#channels li button { /* Delete Button */
+
+/* KORREKTUR: "Delete" Button vergrÃ¶ÃŸert */
+ul#channels li button {
     background-color: var(--accent-red);
     color: white;
     border: none;
     border-radius: 6px;
-    padding: 5px 10px;
+    padding: 8px 12px; /* VERGRÃ–SSERT */
     cursor: pointer;
-    font-size: 12px;
+    font-size: 14px; /* VERGRÃ–SSERT */
     font-weight: 600;
+    transition: var(--transition-speed);
 }
 ul#channels li button:hover { 
     background-color: var(--accent-red-hover); 
@@ -256,8 +290,12 @@ ul#channels li button:hover {
 .error { color: var(--accent-red); }
 
 
-/* --- Settings Section (jetzt eine Karte) --- */
-.settings-container { margin-bottom: 20px; }
+/* --- Settings Section --- */
+.settings-container { 
+    /* NEU: Hintergrund fÃ¼r flaches Design */
+    background-color: var(--bg-dark-secondary);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
 #settings-form .form-row {
     display: flex;
     justify-content: space-between;
@@ -296,11 +334,22 @@ ul#channels li button:hover {
 .form-footer a:hover {
     text-decoration: underline;
 }
+
 #save-settings-btn {
+    padding: 12px 15px;
+    font-size: 16px;
     background-color: var(--accent-green);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    font-weight: 600;
+    transition: var(--transition-speed);
 }
 #save-settings-btn:hover {
     background-color: var(--accent-green-hover);
+    transform: scale(1.02);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 #settings-status {
     font-size: 14px;

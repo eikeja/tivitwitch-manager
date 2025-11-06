@@ -13,7 +13,7 @@
             <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
         </div>
         
-        <div class="setup-info">
+        <div class="setup-info connection-details-box">
             <h3>TiviMate Xtream Codes Setup</h3>
             <p>Use these details to add a new playlist in TiviMate:</p>
             <ul>
@@ -21,21 +21,21 @@
                 <li><strong>Username:</strong> <code>(anything, e.g. "twitch")</code></li>
                 <li><strong>Password:</strong> <code>(your master password)</code></li>
             </ul>
-        </div>
-        
-        <div class="setup-info m3u-info" id="m3u-setup-info" style="display: none;">
-            <h3>M3U Playlist Setup (VLC, etc.)</h3>
-            <p>Use these URLs for simple players. <strong>Live streams only.</strong><br>
-               Replace <code>YOUR_PASSWORD_HERE</code> with your master password.</p>
-            
-            <label for="m3u-url-display">Playlist (M3U) URL:</label>
-            <input type="text" id="m3u-url-display" value="Loading..." readonly>
-            
-            <label for="m3u-epg-url-display">EPG (XML) URL:</label>
-            <input type="text" id="m3u-epg-url-display" value="Loading..." readonly>
-        </div>
 
-
+            <div class="m3u-info" id="m3u-setup-info" style="display: none;">
+                <hr class="section-divider"> 
+                
+                <h3>M3U Playlist Setup (VLC, etc.)</h3>
+                <p>Use these URLs for simple players. <strong>Live streams only.</strong><br>
+                   Replace <code>YOUR_PASSWORD_HERE</code> with your master password.</p>
+                
+                <label for="m3u-url-display">Playlist (M3U) URL:</label>
+                <input type="text" id="m3u-url-display" value="Loading..." readonly>
+                
+                <label for="m3u-epg-url-display">EPG (XML) URL:</label>
+                <input type="text" id="m3u-epg-url-display" value="Loading..." readonly>
+            </div>
+        </div>
         <div class="form-container">
             <h3>Add New Channel</h3>
             <form id="add-channel-form">
