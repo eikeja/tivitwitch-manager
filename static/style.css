@@ -53,8 +53,6 @@ h3 {
     box-shadow: none; 
 }
 
-/* KORREKTUR: .form-container-Regel entfernt */
-
 /* Header (flach) */
 .header {
     display: flex;
@@ -245,40 +243,43 @@ input[type="number"]:focus {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     margin-bottom: 30px;
 }
-/* NEU: Header fÃ¼r Sektionen (Managed Channels) */
 .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px; /* Abstand zur Liste */
+    margin-bottom: 15px; 
 }
 .section-header h3 {
-    margin: 0; /* Ãœberschreibt Standard h3-Margin */
-    border-bottom: none; /* Ãœberschreibt Standard h3-Trenner */
+    margin: 0; 
+    border-bottom: none; 
 }
-/* Verkleinert den "Add New Channel" Button, damit er besser neben die Ãœberschrift passt */
 .section-header .btn-primary {
     padding: 8px 12px;
     font-size: 14px;
 }
 
 ul#channels { list-style-type: none; padding: 0; }
+
+/* --- KORREKTURBLOCK START --- */
 ul#channels li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 0; 
+    padding: 12px 10px; /* Padding links/rechts hinzugefÃ¼gt */
     border-bottom: 1px solid var(--border-color); 
-    margin-bottom: 0;
     background-color: transparent; 
+    border-radius: var(--border-radius-small); /* Radius fÃ¼r Hover hinzugefÃ¼gt */
+    transition: var(--transition-speed); /* Animation wieder hinzugefÃ¼gt */
 }
 ul#channels li:last-child {
     border-bottom: none; 
 }
 ul#channels li:hover {
-    background-color: transparent; 
-    transform: none; 
+    background-color: var(--bg-dark-tertiary); /* Hover-Farbe wieder da */
+    transform: translateX(5px); /* Animation wieder da */
 }
+/* --- KORREKTURBLOCK ENDE --- */
+
 ul#channels li span { font-size: 1.1em; }
 
 ul#channels li button { /* Delete Button */
