@@ -24,12 +24,16 @@ CREATE TABLE IF NOT EXISTS settings (
 ''')
 
 # --- Live Streams (vom Poller befüllt) ---
+# NEU: Spalten epg_channel_id, stream_title, stream_game
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS live_streams (
     id INTEGER PRIMARY KEY,
     login_name TEXT NOT NULL UNIQUE,
+    epg_channel_id TEXT,
     display_name TEXT NOT NULL,
     is_live BOOLEAN NOT NULL DEFAULT 0,
+    stream_title TEXT,
+    stream_game TEXT,
     category TEXT NOT NULL DEFAULT 'Twitch Live'
 )
 ''')
@@ -52,7 +56,7 @@ default_settings = {
     'twitch_client_id': '',
     'twitch_client_secret': '',
     'vod_count_per_channel': '5',
-    'm3u_enabled': 'false' # NEUE EINSTELLUNG
+    'm3u_enabled': 'false' # Diese Einstellung von V6 bleibt erhalten
 }
 
 for key, value in default_settings.items():

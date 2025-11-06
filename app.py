@@ -9,6 +9,8 @@ import streamlink
 from streamlink.exceptions import NoPluginError, PluginError
 import os
 import time
+from datetime import datetime, timedelta
+import html
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
@@ -89,8 +91,9 @@ def check_web_ui_auth():
         '/player_api.php', # XC API
         '/live/',           # XC Live Stream
         '/movie/',          # XC VOD Stream
-        '/playlist.m3u',    # NEU: M3U Playlist
-        '/play_live_m3u/'   # NEU: M3U Live Stream
+        '/playlist.m3u',    # M3U Playlist
+        '/play_live_m3u/',  # M3U Live Stream
+        '/epg.xml'          # NEU: EPG XML
     ]
     
     for path in public_paths:
@@ -119,7 +122,7 @@ def generate_stream_data(stream_fd):
     finally:
         stream_fd.close()
 
-# --- XC Live Stream (unverändert) ---
+# --- Live Streams (Bleibt ein Proxy, das ist korrekt so) ---
 @app.route('/live/<username>/<password>/<int:stream_id>')
 @app.route('/live/<username>/<password>/<int:stream_id>.<ext>')
 def play_live_stream_xc(username, password, stream_id, ext=None):
@@ -147,7 +150,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
         
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
-# --- XC VOD Stream (unverändert) ---
+# --- VOD Streams (Redirect, korrekt) ---
 @app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
@@ -177,7 +180,7 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
 
-# --- NEU: M3U Live Stream Endpoint (ohne User/Pass in URL) ---
+# --- M3U Live Stream Endpoint (unverändert) ---
 @app.route('/play_live_m3u/<int:stream_id>')
 def play_live_m3u(stream_id):
     """Handles M3U /play_live_m3u/ call."""
@@ -203,43 +206,81 @@ def play_live_m3u(stream_id):
     return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
 
-# --- NEU: M3U Playlist Endpoint ---
+# --- M3U Playlist Endpoint (ANGEPASST) ---
 @app.route('/playlist.m3u')
 def generate_m3u():
     """Generates the M3U playlist dynamically."""
     password = request.args.get('password', '')
     
-    # Prüfe das Passwort
     if not check_xc_auth(None, password):
         return "Invalid password", 401
         
     conn = get_db_connection()
     
-    # Prüfe, ob M3U-Funktion aktiviert ist
     m3u_enabled = conn.execute("SELECT value FROM settings WHERE key = 'm3u_enabled'").fetchone()
     if not (m3u_enabled and m3u_enabled['value'] == 'true'):
         return "M3U playlist feature is disabled on the server.", 404
         
-    # Hole Live-Streams aus der DB
     streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
     conn.close()
     
-    m3u_content = ["#EXTM3U"]
+    # NEU: EPG-URL hinzufügen
+    epg_url = f"{HOST_URL}/epg.xml?password={password}"
+    m3u_content = [f'#EXTM3U url-tvg="{epg_url}"']
     
     for stream in streams:
-        # Erstelle den M3U-Eintrag
         channel_name = stream['display_name']
-        tvg_id = stream['login_name']
+        tvg_id = stream['epg_channel_id'] # NEU: EPG-ID verwenden
         stream_url = f"{HOST_URL}/play_live_m3u/{stream['id']}"
         
         m3u_content.append(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{channel_name}" tvg-logo="" group-title="Twitch Live",{channel_name}')
         m3u_content.append(stream_url)
 
-    # Gib die Playlist als Text zurück
     return Response('\n'.join(m3u_content), mimetype='audio/mpegurl')
 
+# --- NEU: EPG XML Endpoint (für M3U) ---
+@app.route('/epg.xml')
+def generate_epg_xml():
+    """Generates the EPG XMLTV file dynamically."""
+    password = request.args.get('password', '')
+    
+    if not check_xc_auth(None, password):
+        return "Invalid password", 401
+    
+    conn = get_db_connection()
+    streams = conn.execute('SELECT * FROM live_streams WHERE is_live = 1').fetchall()
+    conn.close()
+    
+    xml_content = ['<?xml version="1.0" encoding="UTF-8"?>', '<tv>']
+    
+    # Kanäle definieren
+    for stream in streams:
+        xml_content.append(f'  <channel id="{stream["epg_channel_id"]}">')
+        xml_content.append(f'    <display-name>{html.escape(stream["login_name"].title())}</display-name>')
+        xml_content.append('  </channel>')
+        
+    # Programme (EPG-Einträge) definieren
+    now = datetime.utcnow()
+    # EPG für die nächsten 4 Stunden anzeigen
+    start_time = now.strftime('%Y%m%d%H%M%S +0000')
+    end_time = (now + timedelta(hours=4)).strftime('%Y%m%d%H%M%S +0000')
+    
+    for stream in streams:
+        title = html.escape(stream['stream_title'] or 'No Title')
+        desc = html.escape(stream['stream_game'] or 'No Category')
+        
+        xml_content.append(f'  <programme start="{start_time}" stop="{end_time}" channel="{stream["epg_channel_id"]}">')
+        xml_content.append(f'    <title lang="en">{title}</title>')
+        xml_content.append(f'    <desc lang="en">{desc}</desc>')
+        xml_content.append(f'    <category lang="en">{desc}</category>')
+        xml_content.append('  </programme>')
+        
+    xml_content.append('</tv>')
+    
+    return Response('\n'.join(xml_content), mimetype='application/xml')
 
-# --- TIVIMATE XTREAM CODES API ENDPOINT (unverändert) ---
+
+# --- TIVIMATE XTREAM CODES API ENDPOINT (ANGEPASST) ---
 @app.route('/player_api.php', methods=['GET', 'POST'])
 def player_api():
     username = request.args.get('username', 'default')
@@ -296,7 +337,7 @@ def player_api():
         conn.close() 
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
-    # --- 3. Live Streams ---
+    # --- 3. Live Streams (ANGEPASST) ---
     if action == 'get_live_streams':
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
         conn.close() 
@@ -309,7 +350,7 @@ def player_api():
                 "stream_type": "live",
                 "stream_id": stream['id'], 
                 "stream_icon": "",
-                "epg_channel_id": stream['login_name'],
+                "epg_channel_id": stream['epg_channel_id'], # NEU: EPG-ID übergeben
                 "added": str(int(time.time())),
                 "category_id": "1", 
                 "custom_sid": "",
@@ -317,6 +358,38 @@ def player_api():
             })
         
         return jsonify(live_streams_json)
+        
+    # --- NEU: EPG Endpoint (für XC) ---
+    if action == 'get_short_epg':
+        epg_channel_id = request.args.get('channel_id')
+        
+        stream = conn.execute('SELECT * FROM live_streams WHERE epg_channel_id = ? AND is_live = 1', (epg_channel_id,)).fetchone()
+        conn.close()
+        
+        epg_listings = []
+        if stream:
+            title = html.escape(stream['stream_title'] or 'No Title')
+            desc = html.escape(stream['stream_game'] or 'No Category')
+            
+            # Sende EPG für 4 Stunden
+            start_ts = int(time.time())
+            stop_ts = start_ts + (4 * 60 * 60)
+            
+            epg_listings.append({
+                "id": f"{stream['id']}_{start_ts}",
+                "epg_id": epg_channel_id,
+                "title": title,
+                "lang": "en",
+                "start": datetime.fromtimestamp(start_ts).strftime('%Y-%m-%d %H:%M:%S'),
+                "end": datetime.fromtimestamp(stop_ts).strftime('%Y-%m-%d %H:%M:%S'),
+                "description": desc,
+                "channel_id": epg_channel_id,
+                "start_timestamp": start_ts,
+                "stop_timestamp": stop_ts
+            })
+            
+        return jsonify({"epg_listings": epg_listings})
+
 
     # --- VOD-Kategorie-Map ---
     categories_raw = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
@@ -467,7 +540,7 @@ def save_settings():
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
                      ('vod_count_per_channel', str(data.get('vod_count_per_channel', '5'))))
         
-        # NEU: M3U-Einstellung speichern
+        # M3U-Einstellung speichern (unverändert)
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", 
                      ('m3u_enabled', str(data.get('m3u_enabled', 'false')).lower()))
         
