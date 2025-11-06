@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- Dynamic Setup Infos ---
+    // --- Dynamic Setup Infos (ANGEPASST) ---
     function setDynamicUrls() {
         const host = window.location.host; 
         const protocol = window.location.protocol; 
@@ -12,10 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
             serverUrlElement.textContent = baseUrl;
         }
         
-        // NEU: M3U URL
+        // M3U Playlist URL
         const m3uUrlElement = document.getElementById('m3u-url-display');
         if (m3uUrlElement) {
             m3uUrlElement.value = `${baseUrl}/playlist.m3u?password=YOUR_PASSWORD_HERE`;
+        }
+        
+        // NEU: M3U EPG URL
+        const m3uEpgUrlElement = document.getElementById('m3u-epg-url-display');
+        if (m3uEpgUrlElement) {
+            m3uEpgUrlElement.value = `${baseUrl}/epg.xml?password=YOUR_PASSWORD_HERE`;
         }
     }
     setDynamicUrls();
@@ -104,10 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     
-    // --- Settings Management (angepasst) ---
+    // --- Settings Management (unverändert) ---
     const settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
-        // NEUE ELEMENTE
         const m3uEnabled = document.getElementById('setting-m3u-enabled');
         const m3uInfoBox = document.getElementById('m3u-setup-info');
         
@@ -124,14 +129,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok) throw new Error('Failed to load settings');
                 const settings = await response.json();
                 
-                // Setze VOD-Werte
                 vodEnabled.checked = settings.vod_enabled === 'true';
                 clientId.value = settings.twitch_client_id || '';
                 vodCount.value = settings.vod_count_per_channel || '5';
                 
-                // NEU: Setze M3U-Werte
                 m3uEnabled.checked = settings.m3u_enabled === 'true';
-                // Zeige die M3U-Info-Box an, wenn der Schalter an ist
                 m3uInfoBox.style.display = m3uEnabled.checked ? 'block' : 'none';
                 
             } catch (error) {
@@ -140,7 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // NEU: Event listener, um die Box sofort anzuzeigen/zu verstecken
         m3uEnabled.addEventListener('change', () => {
              m3uInfoBox.style.display = m3uEnabled.checked ? 'block' : 'none';
         });
@@ -154,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 twitch_client_id: clientId.value,
                 twitch_client_secret: clientSecret.value,
                 vod_count_per_channel: vodCount.value,
-                m3u_enabled: m3uEnabled.checked // NEU
+                m3u_enabled: m3uEnabled.checked 
             };
 
             try {

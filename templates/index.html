@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-g">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TiviTwitch Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -25,9 +25,14 @@
         
         <div class="setup-info m3u-info" id="m3u-setup-info" style="display: none;">
             <h3>M3U Playlist Setup (VLC, etc.)</h3>
-            <p>Use this URL for simple players. <strong>Live streams only.</strong><br>
+            <p>Use these URLs for simple players. <strong>Live streams only.</strong><br>
                Replace <code>YOUR_PASSWORD_HERE</code> with your master password.</p>
+            
+            <label for="m3u-url-display">Playlist (M3U) URL:</label>
             <input type="text" id="m3u-url-display" value="Loading..." readonly>
+            
+            <label for="m3u-epg-url-display">EPG (XML) URL:</label>
+            <input type="text" id="m3u-epg-url-display" value="Loading..." readonly>
         </div>
 
 

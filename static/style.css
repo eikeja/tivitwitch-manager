@@ -83,15 +83,22 @@ h3 {
     color: #8a43f7;
 }
 
-/* --- NEU: M3U Info Box --- */
+/* --- M3U Info Box (ANGEPASST) --- */
 .m3u-info {
-    margin-top: 15px; /* Abstand zur XC Box */
-    border-color: #d6bbfb; /* Leichte lila-Färbung */
+    margin-top: 15px; 
+    border-color: #d6bbfb; 
     background-color: #fdfbff;
 }
 .m3u-info p {
     margin: 0 0 10px 0;
     font-size: 0.95em;
+}
+.m3u-info label {
+    display: block;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-top: 8px;
+    color: #555;
 }
 .m3u-info input[type="text"] {
     width: calc(100% - 20px);
@@ -100,6 +107,7 @@ h3 {
     border-radius: 6px;
     background-color: #f9f9f9;
     font-family: monospace;
+    margin-top: 2px; /* Kleiner Abstand zum Label */
 }
 
 
