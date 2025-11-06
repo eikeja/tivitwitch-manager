@@ -31,7 +31,7 @@ This is the easiest way to deploy the service.
 2.  Select **"Git Repository"** as the build method.
 3.  **Repository URL:**
     ```
-    [https://github.com/eikeja/tivitwitch-manager.git](https://github.com/eikeja/tivitwitch-manager.git)
+    https://github.com/eikeja/tivitwitch-manager.git
     ```
 4.  **Compose path:**
     ```
@@ -48,14 +48,14 @@ This is the easiest way to deploy the service.
 
 1.  Clone this repository:
     ```bash
-    git clone [https://github.com/eikeja/tivitwitch-manager.git](https://github.com/eikeja/tivitwitch-manager.git)
+    git clone https://github.com/eikeja/tivitwitch-manager.git
     cd tivitwitch-manager
     ```
 2.  Edit the `docker-compose.yml` file and adjust the `ports` mapping if needed.
 3.  Run the stack, making sure to set the `HOST_URL` variable:
     ```bash
     # Replace the URL with your server's public IP and port
-    HOST_URL="[http://192.168.1.100:8998](http://192.168.1.100:8998)" docker-compose up -d
+    HOST_URL="http://192.168.1.100:8998" docker-compose up -d
     ```
 
 ## Configuration & Player Setup
