@@ -237,7 +237,7 @@ input[type="number"]:focus {
 #add-channel-form button { width: 100%; }
 
 
-/* KORREKTUR: Channel List (jetzt eine Karte) */
+/* Channel List (jetzt eine Karte) */
 .channel-list {
     background-color: var(--bg-dark-secondary);
     padding: 20px;
@@ -282,7 +282,7 @@ ul#channels li button:hover {
 .error { color: var(--accent-red); }
 
 
-/* KORREKTUR: Settings Section (jetzt eine Karte) */
+/* Settings Section (jetzt eine Karte) */
 .settings-container {
     background-color: var(--bg-dark-secondary);
     padding: 20px; 
@@ -317,7 +317,7 @@ ul#channels li button:hover {
 #settings-status { font-size: 14px; margin-top: 10px; text-align: right; }
 
 
-/* KORREKTUR: Toggle Switch CSS wieder eingefÃ¼gt */
+/* Toggle Switch CSS */
 .switch {
     position: relative;
     display: inline-block;
