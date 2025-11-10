@@ -11,14 +11,18 @@ import os
 import time
 from datetime import datetime, timedelta
 import html
-from urllib.parse import urljoin # <-- Wichtiger Import
+from urllib.parse import urljoin # Wichtiger Import
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
 DB_PATH = '/data/channels.db'
 HOST_URL = os.environ.get('HOST_URL')
 
-streamlink_session = streamlink.Streamlink()
+# --- START ÄNDERUNG ---
+# Die globale Streamlink-Session wird entfernt, um Caching zu verhindern.
+# Jede Anfrage erstellt jetzt ihre eigene, frische Session.
+# streamlink_session = streamlink.Streamlink() 
+# --- ENDE ÄNDERUNG ---
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -147,7 +151,11 @@ def check_web_ui_auth():
 
 # --- TIVIMATE STREAMING ENDPOINTS (PUBLIC) ---
 
-def _get_hls_playlist_response(stream_url):
+# --- START ÄNDERUNG ---
+# Die Funktion muss jetzt die (frische) Session übergeben bekommen,
+# damit sie deren http-Client für den Abruf nutzen kann.
+def _get_hls_playlist_response(session, stream_url):
+# --- ENDE ÄNDERUNG ---
     """
     NEUE ZENTRALE FUNKTION:
     Holt, umschreibt und bedient eine HLS-Playlist, indem sie
@@ -155,8 +163,10 @@ def _get_hls_playlist_response(stream_url):
     Löst das 404-Problem und spart Server-Bandbreite.
     """
     try:
-        # 1. Medien-Playlist über die Session von streamlink abrufen
-        response = streamlink_session.http.get(stream_url)
+        # 1. Medien-Playlist über die übergebene Session abrufen
+        # --- START ÄNDERUNG ---
+        response = session.http.get(stream_url)
+        # --- ENDE ÄNDERUNG ---
         response.raise_for_status()
         media_playlist_text = response.text
     except Exception as e:
@@ -204,15 +214,23 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     login_name = channel['login_name']
     print(f"[Play-Live-XC]: Client requested HLS for {login_name} (DB-ID: {stream_id})")
     
+    # --- START ÄNDERUNG ---
+    # Erstelle eine FRISCHE, LOKALE Session für diese Anfrage
+    session = streamlink.Streamlink()
+    # --- ENDE ÄNDERUNG ---
+    
     try:
-        streams = streamlink_session.streams(f'twitch.tv/{login_name}')
+        # --- START ÄNDERUNG ---
+        streams = session.streams(f'twitch.tv/{login_name}')
+        # --- ENDE ÄNDERUNG ---
+        
         if "best" not in streams:
             print(f"[Play-Live-XC]: Stream not found for {login_name} (ID: {stream_id})")
             return "Stream offline or not found", 404
             
         # --- START ÄNDERUNG ---
-        # Nutze die neue HLS-Proxy-Funktion statt Full-Proxy
-        return _get_hls_playlist_response(streams["best"].url)
+        # Nutze die neue HLS-Proxy-Funktion und übergib die frische Session
+        return _get_hls_playlist_response(session, streams["best"].url)
         # --- ENDE ÄNDERUNG ---
 
     except Exception as e:
@@ -237,15 +255,23 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
     twitch_vod_id = vod['vod_id']
     print(f"[Play-VOD-XC]: Client requested HLS for VOD {twitch_vod_id} (DB-ID: {stream_id})")
 
+    # --- START ÄNDERUNG ---
+    # Erstelle eine FRISCHE, LOKALE Session für diese Anfrage
+    session = streamlink.Streamlink()
+    # --- ENDE ÄNDERUNG ---
+
     try:
-        streams = streamlink_session.streams(f'twitch.tv/videos/{twitch_vod_id}')
+        # --- START ÄNDERUNG ---
+        streams = session.streams(f'twitch.tv/videos/{twitch_vod_id}')
+        # --- ENDE ÄNDERUNG ---
+        
         if "best" not in streams:
             print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
         # --- START ÄNDERUNG ---
-        # Nutze die HLS-Proxy-Funktion (wie in der vorherigen Lösung)
-        return _get_hls_playlist_response(streams["best"].url)
+        # Nutze die HLS-Proxy-Funktion und übergib die frische Session
+        return _get_hls_playlist_response(session, streams["best"].url)
         # --- ENDE ÄNDERUNG ---
 
     except Exception as e:
@@ -265,15 +291,23 @@ def play_live_m3u(stream_id):
     login_name = channel['login_name']
     print(f"[Play-Live-M3U]: Client requested HLS for {login_name} (DB-ID: {stream_id})")
     
+    # --- START ÄNDERUNG ---
+    # Erstelle eine FRISCHE, LOKALE Session für diese Anfrage
+    session = streamlink.Streamlink()
+    # --- ENDE ÄNDERUNG ---
+    
     try:
-        streams = streamlink_session.streams(f'twitch.tv/{login_name}')
+        # --- START ÄNDERUNG ---
+        streams = session.streams(f'twitch.tv/{login_name}')
+        # --- ENDE ÄNDERUNG ---
+        
         if "best" not in streams:
             print(f"[Play-Live-M3U]: Stream not found for {login_name} (ID: {stream_id})")
             return "Stream offline or not found", 404
         
         # --- START ÄNDERUNG ---
-        # Nutze auch hier die HLS-Proxy-Funktion statt Full-Proxy
-        return _get_hls_playlist_response(streams["best"].url)
+        # Nutze auch hier die HLS-Proxy-Funktion und übergib die frische Session
+        return _get_hls_playlist_response(session, streams["best"].url)
         # --- ENDE ÄNDERUNG ---
         
     except Exception as e:
@@ -412,7 +446,7 @@ def player_api():
                 "category_id": "1", 
                 "custom_sid": "",
                 "tv_archive": 0,
-                "container_extension": "m3u8" # <-- NEUE ÄNDERUNG
+                "container_extension": "m3u8"
             })
         
         return jsonify(live_streams_json)
