@@ -491,7 +491,10 @@ def player_api():
         conn.close()
         
         vod_streams_json = []
-        for vod in vods.fetchall():
+        # --- START KORREKTUR ---
+        # Entferne das doppelte .fetchall()
+        for vod in vods:
+        # --- ENDE KORREKTUR ---
             vod_cat_id = category_map.get(vod['category'], "1") 
             
             vod_streams_json.append({
