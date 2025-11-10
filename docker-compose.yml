@@ -16,6 +16,13 @@ services:
     volumes:
       # Persists the database in a managed Docker volume
       - tivitwitch_data:/data
+    
+    # --- START DER ÄNDERUNG ---
+    # Füge diesen Block hinzu, um DNS-Probleme (NameResolutionError) zu beheben
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    # --- ENDE DER ÄNDERUNG ---
 
 volumes:
   tivitwitch_data:
