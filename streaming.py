@@ -13,15 +13,15 @@ bp = Blueprint('streaming', __name__)
 
 HOST_URL = os.environ.get('HOST_URL')
 
-# --- Streaming-Helfer ---
+# --- Streaming Helpers ---
 
 def generate_epg_data():
-    """Generiert die XMLTV content based on the DB."""
-    current_app.logger.info("[EPG] Generiere EPG-Daten...")
+    """Generates the XMLTV content based on the DB."""
+    current_app.logger.info("[EPG] Generating EPG data...")
     conn = get_db_connection()
     streams = conn.execute('SELECT * FROM live_streams WHERE is_live = 1').fetchall()
     conn.close()
-    current_app.logger.info(f"[EPG] EPG-Daten für {len(streams)} Live-Kanäle erstellt.")
+    current_app.logger.info(f"[EPG] EPG data generated for {len(streams)} live channels.")
     
     xml_content = ['<?xml version="1.0" encoding="UTF-8"?>', '<tv>']
     
@@ -48,9 +48,9 @@ def generate_epg_data():
     return '\n'.join(xml_content)
 
 def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
-    """(Für VOD-Streams) Schreibt Playlist auf den /vod-segment-proxy/ um."""
+    """(For VODs) Rewrites the playlist to point to our /vod-segment-proxy/."""
     try:
-        current_app.logger.info(f"[HLS-Proxy-VOD1] Rufe Media-Playlist für VOD {twitch_vod_id} ab: {stream_url}")
+        current_app.logger.info(f"[HLS-Proxy-VOD1] Fetching media playlist for VOD {twitch_vod_id}: {stream_url}")
         response = session.http.get(stream_url)
         response.raise_for_status()
         media_playlist_text = response.text
@@ -72,33 +72,28 @@ def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
             proxy_url = f"/vod-segment-proxy/{twitch_vod_id}/{segment_path}"
             output_playlist.append(proxy_url)
     
-    current_app.logger.info(f"[HLS-Proxy-VOD1] Playlist für VOD {twitch_vod_id} mit {segment_count} Segmenten auf lokalen Proxy umgeschrieben.")
+    current_app.logger.info(f"[HLS-Proxy-VOD1] Playlist for VOD {twitch_vod_id} rewritten to local proxy with {segment_count} segments.")
     return Response('\n'.join(output_playlist), mimetype='application/vnd.apple.mpegurl')
 
-# --- START ÄNDERUNG (Fix RuntimeError) ---
 def generate_stream_data(stream_fd):
-    """(Für Live-Streams im Proxy-Modus) Yields chunks of stream data."""
-    # Diese Funktion läuft "außerhalb" des App-Kontexts.
-    # Verwende print() statt current_app.logger, da stdout sowieso vom Log erfasst wird.
-    
-    # current_app.logger.info("[Live-Proxy] Stream-Generator gestartet.") <-- WIRD NACH OBEN VERSCHOBEN
+    """(For Live-Proxy) Yields chunks of stream data."""
+    # This function runs outside the app context.
+    # Use print() instead of current_app.logger, as stdout is captured anyway.
     try:
         while True:
             data = stream_fd.read(4096)
             if not data:
-                print("[Live-Proxy] Stream beendet (keine Daten mehr).")
+                print("[Live-Proxy] Stream ended (no more data).")
                 break
             yield data
     except Exception as e:
-        # Ein "Connection reset by peer" ist normal, wenn der Client (VLC, TiviMate) die Verbindung schließt
         if "Connection reset by peer" not in str(e):
-            print(f"[Live-Proxy] ERROR: Fehler während des Streamings: {e}")
+            print(f"[Live-Proxy] ERROR: Error during streaming: {e}")
     finally:
         stream_fd.close()
-        print("[Live-Proxy] Stream-Verbindung geschlossen.")
-# --- ENDE ÄNDERUNG ---
+        print("[Live-Proxy] Stream connection closed.")
 
-# --- TIVIMATE XTREAM CODES API ENDPUNKT ---
+# --- TIVIMATE XTREAM CODES API ENDPOINT ---
 @bp.route('/player_api.php', methods=['GET', 'POST'])
 def player_api():
     username = request.args.get('username', 'default')
@@ -106,16 +101,16 @@ def player_api():
     action = request.args.get('action', '')
     
     if not HOST_URL:
-        current_app.logger.critical("[XC-API] HOST_URL Umgebungsvariable ist nicht gesetzt! API wird fehlschlagen.")
+        current_app.logger.critical("[XC-API] HOST_URL environment variable is not set! API will fail.")
         return "HOST_URL environment variable is not set on the server.", 500
 
     conn = get_db_connection() 
-    current_app.logger.info(f"[XC-API] Anfrage von User '{username}', Action: '{action}'")
+    current_app.logger.info(f"[XC-API] Request from user '{username}', Action: '{action}'")
 
     # --- 1. Authentication ---
     if action == 'get_user_info' or action == '':
         if check_xc_auth(username, password):
-            current_app.logger.info(f"[XC-API] User '{username}' erfolgreich authentifiziert (get_user_info).")
+            current_app.logger.info(f"[XC-API] User '{username}' authenticated successfully (get_user_info).")
             port = "80"
             if ':' in HOST_URL:
                 port_str = HOST_URL.split(':')[-1]
@@ -128,18 +123,18 @@ def player_api():
                 "server_info": {"url": HOST_URL.replace("http://", "").replace("https://", "").split(':')[0], "port": port, "https": 1 if HOST_URL.startswith("https") else 0, "server_protocol": "http", "rtmp_port": "1935", "timezone": "UTC", "timestamp_now": int(time.time()), "epg_url": "/xmltv.php"}
             })
         else:
-            current_app.logger.warning(f"[XC-API] User '{username}' Authentifizierung fehlgeschlagen (get_user_info).")
+            current_app.logger.warning(f"[XC-API] User '{username}' authentication failed (get_user_info).")
             conn.close() 
             return jsonify({"user_info": {"auth": 0, "status": "Invalid Credentials"}})
 
     if not check_xc_auth(username, password):
-        current_app.logger.warning(f"[XC-API] User '{username}' Authentifizierung für Action '{action}' fehlgeschlagen.")
+        current_app.logger.warning(f"[XC-API] User '{username}' authentication failed for Action '{action}'.")
         conn.close() 
         return "Invalid credentials", 401
     
     # --- 2. Live Categories ---
     if action == 'get_live_categories':
-        current_app.logger.info(f"[XC-API] Liefere Live-Kategorien für User '{username}'.")
+        current_app.logger.info(f"[XC-API] Delivering live categories for user '{username}'.")
         conn.close() 
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
@@ -147,7 +142,7 @@ def player_api():
     if action == 'get_live_streams':
         streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
         conn.close() 
-        current_app.logger.info(f"[XC-API] Liefere {len(streams)} Live-Streams für User '{username}'.")
+        current_app.logger.info(f"[XC-API] Delivering {len(streams)} live streams for user '{username}'.")
         
         live_streams_json = []
         for stream in streams:
@@ -166,7 +161,7 @@ def player_api():
     if action == 'get_vod_categories':
         vod_categories_json = [{"category_id": cat_id, "category_name": cat_name, "parent_id": 0} for cat_name, cat_id in category_map.items()]
         conn.close()
-        current_app.logger.info(f"[XC-API] Liefere {len(vod_categories_json)} VOD-Kategorien für User '{username}'.")
+        current_app.logger.info(f"[XC-API] Delivering {len(vod_categories_json)} VOD categories for user '{username}'.")
         return jsonify(vod_categories_json)
         
     # --- 5. VOD (Movie) Streams ---
@@ -184,13 +179,13 @@ def player_api():
         query += ' ORDER BY created_at DESC'
         vods = conn.execute(query, params).fetchall()
         conn.close()
-        current_app.logger.info(f"[XC-API] Liefere {len(vods)} VOD-Streams für User '{username}' (Kategorie: {category_id}).")
+        current_app.logger.info(f"[XC-API] Delivering {len(vods)} VOD streams for user '{username}' (Category: {category_id}).")
         
         vod_streams_json = []
         for vod in vods:
             vod_streams_json.append({
                 "num": vod['id'], "name": vod['title'], "stream_type": "movie", 
-                "stream_id": vod['vod_id'], # <-- HIER IST DEIN VOD-FIX
+                "stream_id": vod['vod_id'], # VOD 404 Fix
                 "stream_icon": vod['thumbnail_url'] or None, "rating": 0, "rating_5based": 0,
                 "added": str(int(time.time())), "category_id": category_map.get(vod['category'], "1"), 
                 "container_extension": "m3u8", "custom_sid": "",
@@ -198,15 +193,15 @@ def player_api():
         return jsonify(vod_streams_json)
 
     if action in ('get_series_categories', 'get_series'):
-        current_app.logger.info(f"[XC-API] Liefere leere Serien-Antwort für Action '{action}'.")
+        current_app.logger.info(f"[XC-API] Delivering empty series response for Action '{action}'.")
         conn.close()
         return jsonify([]) 
 
     conn.close()
-    current_app.logger.error(f"[XC-API] Unbekannte Action '{action}' von User '{username}'.")
+    current_app.logger.error(f"[XC-API] Unknown Action '{action}' from user '{username}'.")
     return jsonify({"error": "Unknown action"})
 
-# --- LIVE STREAM ENDPUNKTE (MIT SWITCH) ---
+# --- LIVE STREAM ENDPOINTS (WITH SWITCH) ---
 
 @bp.route('/live/<username>/<password>/<int:stream_id>')
 @bp.route('/live/<username>/<password>/<int:stream_id>.<ext>')
@@ -219,36 +214,31 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     conn.close()
     
     if not channel:
-        current_app.logger.error(f"[Play-Live-XC] Stream mit DB-ID {stream_id} nicht in DB gefunden.")
+        current_app.logger.error(f"[Play-Live-XC] Stream with DB-ID {stream_id} not found in DB.")
         return "Stream not found", 404
         
     login_name = channel['login_name']
     
-    live_mode = get_setting('live_stream_mode', 'proxy') # Standard 'proxy'
-    current_app.logger.info(f"[Play-Live-XC] Anfrage für {login_name} (DB-ID: {stream_id}). Modus: {live_mode}")
+    live_mode = get_setting('live_stream_mode', 'proxy') # Default 'proxy'
+    current_app.logger.info(f"[Play-Live-XC] Request for {login_name} (DB-ID: {stream_id}). Mode: {live_mode}")
 
     session = streamlink.Streamlink()
     
     try:
         streams = session.streams(f'twitch.tv/{login_name}')
         if "best" not in streams:
-            current_app.logger.warning(f"[Play-Live-XC] Streamlink fand keinen Stream für {login_name}. (Offline?)")
+            current_app.logger.warning(f"[Play-Live-XC] Streamlink found no stream for {login_name}. (Offline?)")
             return "Stream offline or not found", 404
         
         if live_mode == 'direct':
-            # --- MODUS 1: DIRECT (Schnell, mit Werbung) ---
-            current_app.logger.info(f"[Play-Live-XC] Sende 302 Redirect für {login_name} an: {streams['best'].url}")
+            # --- MODE 1: DIRECT (Fast, shows ads) ---
+            current_app.logger.info(f"[Play-Live-XC] Sending 302 Redirect for {login_name} to: {streams['best'].url}")
             return redirect(streams["best"].url)
         else:
-            # --- MODUS 2: PROXY (Langsam, filtert Werbung) ---
-            current_app.logger.info(f"[Play-Live-XC] Öffne Stream im Proxy-Modus für {login_name}.")
+            # --- MODE 2: PROXY (Slow, filters ads) ---
+            current_app.logger.info(f"[Play-Live-XC] Opening stream in Proxy-Mode for {login_name}.")
             stream_fd = streams["best"].open()
-            
-            # --- START ÄNDERUNG (Fix RuntimeError) ---
-            # Logge den Start des Generators *bevor* die Response zurückgegeben wird
-            current_app.logger.info("[Live-Proxy] Stream-Generator wird gestartet.")
-            # --- ENDE ÄNDERUNG ---
-            
+            current_app.logger.info("[Live-Proxy] Stream generator starting.")
             return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
     except Exception as e:
@@ -257,46 +247,42 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
 
 @bp.route('/play_live_m3u/<int:stream_id>')
 def play_live_m3u(stream_id):
-    """M3U-Endpunkt, respektiert ebenfalls den Live-Stream-Modus."""
+    """M3U endpoint, also respects the live stream mode."""
     conn = get_db_connection()
     channel = conn.execute('SELECT login_name FROM live_streams WHERE id = ?', (stream_id,)).fetchone()
     conn.close()
     
     if not channel:
-        current_app.logger.error(f"[Play-Live-M3U] Stream mit DB-ID {stream_id} nicht in DB gefunden.")
+        current_app.logger.error(f"[Play-Live-M3U] Stream with DB-ID {stream_id} not found in DB.")
         return "Stream not found", 404
         
     login_name = channel['login_name']
     
     live_mode = get_setting('live_stream_mode', 'proxy')
-    current_app.logger.info(f"[Play-Live-M3U] Anfrage für {login_name} (DB-ID: {stream_id}). Modus: {live_mode}")
+    current_app.logger.info(f"[Play-Live-M3U] Request for {login_name} (DB-ID: {stream_id}). Mode: {live_mode}")
     
     session = streamlink.Streamlink()
     
     try:
         streams = session.streams(f'twitch.tv/{login_name}')
         if "best" not in streams:
-            current_app.logger.warning(f"[Play-Live-M3U] Streamlink fand keinen Stream für {login_name}. (Offline?)")
+            current_app.logger.warning(f"[Play-Live-M3U] Streamlink found no stream for {login_name}. (Offline?)")
             return "Stream offline or not found", 404
         
         if live_mode == 'direct':
-            current_app.logger.info(f"[Play-Live-M3U] Sende 302 Redirect für {login_name}.")
+            current_app.logger.info(f"[Play-Live-M3U] Sending 302 Redirect for {login_name}.")
             return redirect(streams["best"].url)
         else:
-            current_app.logger.info(f"[Play-Live-M3U] Öffne Stream im Proxy-Modus für {login_name}.")
+            current_app.logger.info(f"[Play-Live-M3U] Opening stream in Proxy-Mode for {login_name}.")
             stream_fd = streams["best"].open()
-            
-            # --- START ÄNDERUNG (Fix RuntimeError) ---
-            current_app.logger.info("[Live-Proxy] Stream-Generator wird gestartet.")
-            # --- ENDE ÄNDERUNG ---
-            
+            current_app.logger.info("[Live-Proxy] Stream generator starting.")
             return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
         
     except Exception as e:
         current_app.logger.error(f"[Play-Live-M3U] ERROR: {e}")
         return "Error opening stream", 500
         
-# --- VOD STREAM ENDPUNKTE (Unverändert, Proxy ist hier Pflicht) ---
+# --- VOD STREAM ENDPOINTS (Unchanged, proxy is mandatory here) ---
 
 @bp.route('/movie/<username>/<password>/<string:stream_id>') 
 @bp.route('/movie/<username>/<password>/<string:stream_id>.<ext>')
@@ -315,7 +301,7 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
             current_app.logger.warning(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
-        current_app.logger.info(f"[Play-VOD-XC]: Streamlink für VOD {twitch_vod_id} erfolgreich. Nutze Stufe-1-Rewriter.")
+        current_app.logger.info(f"[Play-VOD-XC]: Streamlink for VOD {twitch_vod_id} successful. Using Stufe-1-Rewriter.")
         return _get_vod_playlist_response(session, twitch_vod_id, streams["best"].url)
 
     except Exception as e:
@@ -324,7 +310,7 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
 
 @bp.route('/vod-segment-proxy/<string:twitch_vod_id>/<path:segment_path>')
 def vod_segment_proxy(twitch_vod_id, segment_path):
-    """STUFE 2: Fängt Segment-Anfragen ab und leitet zur gültigen Twitch-CDN-URL weiter."""
+    """STAGE 2: Intercepts segment requests and redirects to a valid Twitch CDN URL."""
     current_app.logger.info(f"[VOD-Proxy-S2]: Request for segment '{segment_path}' for VOD {twitch_vod_id}")
     session = streamlink.Streamlink()
     
@@ -358,7 +344,7 @@ def vod_segment_proxy(twitch_vod_id, segment_path):
         current_app.logger.error(f"[VOD-Proxy-S2] ERROR: {e}")
         return "Error proxying segment", 500
 
-# --- M3U / EPG ENDPUNKTE ---
+# --- M3U / EPG ENDPOINTS ---
 
 @bp.route('/playlist.m3u')
 def generate_m3u():
@@ -366,7 +352,7 @@ def generate_m3u():
     if not check_xc_auth(None, password): return "Invalid password", 401
     
     if get_setting('m3u_enabled', 'false') != 'true':
-        current_app.logger.warning("[M3U] M3U-Playlist-Anfrage, obwohl Feature deaktiviert ist.")
+        current_app.logger.warning("[M3U] M3U playlist request, but feature is disabled.")
         return "M3U playlist feature is disabled on the server.", 404
         
     conn = get_db_connection()
@@ -383,7 +369,7 @@ def generate_m3u():
         m3u_content.append(f'#EXTINF:-1 tvg-id="{tvg_id}" tvg-name="{channel_name}" tvg-logo="" group-title="Twitch Live",{channel_name}')
         m3u_content.append(stream_url)
 
-    current_app.logger.info(f"[M3U] M3U-Playlist mit {len(streams)} Kanälen generiert.")
+    current_app.logger.info(f"[M3U] M3U playlist generated with {len(streams)} channels.")
     return Response('\n'.join(m3u_content), mimetype='audio/mpegurl')
 
 @bp.route('/epg.xml')
@@ -391,7 +377,7 @@ def generate_epg_xml():
     password = request.args.get('password', '')
     if not check_xc_auth(None, password): return "Invalid password", 401
     
-    current_app.logger.info("[M3U-EPG] Anfrage für M3U EPG (epg.xml) erhalten.")
+    current_app.logger.info("[M3U-EPG] Request for M3U EPG (epg.xml) received.")
     xml_data = generate_epg_data()
     return Response(xml_data, mimetype='application/xml')
 
@@ -401,6 +387,6 @@ def generate_xc_epg_xml():
     password = request.args.get('password')
     if not check_xc_auth(username, password): return "Invalid credentials", 401
 
-    current_app.logger.info(f"[XC-EPG] Anfrage für XC EPG (xmltv.php) von User '{username}' erhalten.")
+    current_app.logger.info(f"[XC-EPG] Request for XC EPG (xmltv.php) from user '{username}' received.")
     xml_data = generate_epg_data()
     return Response(xml_data, mimetype='application/xml')
