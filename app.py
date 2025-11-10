@@ -126,7 +126,7 @@ def check_web_ui_auth():
         '/player_api.php',     # XC API
         '/live/',               # XC Live Stream
         '/movie/',              # XC VOD Stream
-        '/vod-segment-proxy/',  # <-- NEU: Stufe 2 VOD-Proxy
+        '/vod-segment-proxy/',  # <-- Stufe 2 VOD-Proxy
         '/playlist.m3u',        # M3U Playlist
         '/play_live_m3u/',      # M3U Live Stream
         '/epg.xml',             # M3U EPG
@@ -179,7 +179,7 @@ def _get_live_hls_response(session, stream_url):
     )
 
 # --- METHODE 2: VOD-Playlist-Rewriter (STUFE 1) ---
-def _get_vod_playlist_response(session, stream_id, stream_url):
+def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
     """(Für VOD-Streams) Schreibt Playlist auf den /vod-segment-proxy/ um."""
     try:
         response = session.http.get(stream_url)
@@ -199,11 +199,11 @@ def _get_vod_playlist_response(session, stream_id, stream_url):
         if line.startswith('#'):
             output_playlist.append(line)
         else:
-            # line ist z.B. "segment1.ts?token=..." oder "sub/playlist.m3u8?..."
-            # Wir extrahieren nur den Pfad-Teil
             segment_path = urlparse(line).path
-            # Wir bauen die neue URL, die auf unseren Stufe-2-Proxy zeigt
-            proxy_url = f"/vod-segment-proxy/{stream_id}/{segment_path}"
+            # --- START ÄNDERUNG ---
+            # Baue die URL mit der ECHTEN TWITCH_VOD_ID, nicht der DB-ID
+            proxy_url = f"/vod-segment-proxy/{twitch_vod_id}/{segment_path}"
+            # --- ENDE ÄNDERUNG ---
             output_playlist.append(proxy_url)
     
     return Response(
@@ -271,37 +271,48 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
             print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
+        # --- START ÄNDERUNG ---
         # Nutze VOD-Playlist-Rewriter (Methode 2, Stufe 1)
-        # Wir übergeben die stream_id, damit der Rewriter sie in die URLs einbauen kann
-        return _get_vod_playlist_response(session, stream_id, streams["best"].url)
+        # Wir übergeben die TWITCH_VOD_ID (twitch_vod_id) statt der DB-ID (stream_id)
+        return _get_vod_playlist_response(session, twitch_vod_id, streams["best"].url)
+        # --- ENDE ÄNDERUNG ---
 
     except Exception as e:
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
 
 # --- NEU: VOD Segment-Proxy (STUFE 2) ---
-@app.route('/vod-segment-proxy/<int:stream_id>/<path:segment_path>')
-def vod_segment_proxy(stream_id, segment_path):
+# --- START ÄNDERUNG ---
+# Akzeptiert die TWITCH_VOD_ID (string) statt der DB-ID (int)
+@app.route('/vod-segment-proxy/<string:twitch_vod_id>/<path:segment_path>')
+def vod_segment_proxy(twitch_vod_id, segment_path):
+# --- ENDE ÄNDERUNG ---
     """
     STUFE 2: Fängt Segment-Anfragen ab, holt eine frische Playlist
     und leitet zur gültigen Twitch-CDN-URL weiter.
+    Dieser Endpunkt ist "stateless" und berührt die DB nicht.
     """
     
-    conn = get_db_connection()
-    vod = conn.execute('SELECT vod_id FROM vod_streams WHERE id = ?', (stream_id,)).fetchone()
-    conn.close()
+    # --- START ÄNDERUNG ---
+    # Datenbank-Check wird entfernt, da er die Race Condition verursacht
+    # conn = get_db_connection()
+    # vod = conn.execute('SELECT vod_id FROM vod_streams WHERE id = ?', (stream_id,)).fetchone()
+    # conn.close()
+    # if not vod:
+    #     print(f"[VOD-Proxy-S2] ERROR: VOD {stream_id} not in DB.")
+    #     return "VOD not found", 404
+    # twitch_vod_id = vod['vod_id']
+    # --- ENDE ÄNDERUNG ---
     
-    if not vod:
-        print(f"[VOD-Proxy-S2] ERROR: VOD {stream_id} not in DB.")
-        return "VOD not found", 404
-        
-    twitch_vod_id = vod['vod_id']
-    
-    print(f"[VOD-Proxy-S2]: Request for segment '{segment_path}' for VOD {twitch_vod_id} (DB-ID {stream_id})")
+    print(f"[VOD-Proxy-S2]: Request for segment '{segment_path}' for VOD {twitch_vod_id}")
     
     session = streamlink.Streamlink()
     try:
+        # --- START ÄNDERUNG ---
+        # Benutze die twitch_vod_id direkt aus der URL
         streams = session.streams(f'twitch.tv/videos/{twitch_vod_id}')
+        # --- ENDE ÄNDERUNG ---
+        
         if "best" not in streams:
             return "Streamlink found no streams", 404
             
@@ -600,13 +611,10 @@ def add_channel():
     try:
         new_channel_row = conn.execute('SELECT id FROM channels WHERE login_name = ?', (login_name,)).fetchone()
         if new_channel_row:
-            # --- START SYNTAX-FIX ---
-            # Entferne die überflüssige '}' am Ende des f-strings
             conn.execute(
                 "INSERT OR IGNORE INTO live_streams (id, login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?, ?)",
                 (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
             )
-            # --- ENDE SYNTAX-FIX ---
             conn.commit()
     except Exception as e:
         print(f"Error adding to live_streams table: {e}")
