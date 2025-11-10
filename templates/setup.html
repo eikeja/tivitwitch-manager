@@ -19,8 +19,8 @@
           {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('setup') }}">
-            <input type="password" name="password" placeholder="New Password (min. 4 chars)" required>
+        <form method="POST" action="{{ url_for('auth.setup') }}">
+        <input type="password" name="password" placeholder="New Password (min. 4 chars)" required>
             <button type="submit">Set & Login</button>
         </form>
     </div>
