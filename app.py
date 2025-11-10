@@ -600,10 +600,13 @@ def add_channel():
     try:
         new_channel_row = conn.execute('SELECT id FROM channels WHERE login_name = ?', (login_name,)).fetchone()
         if new_channel_row:
+            # --- START SYNTAX-FIX ---
+            # Entferne die überflüssige '}' am Ende des f-strings
             conn.execute(
                 "INSERT OR IGNORE INTO live_streams (id, login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?, ?)",
-                (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name}.title()}", 0)
+                (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
             )
+            # --- ENDE SYNTAX-FIX ---
             conn.commit()
     except Exception as e:
         print(f"Error adding to live_streams table: {e}")
