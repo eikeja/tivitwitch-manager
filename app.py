@@ -11,7 +11,7 @@ import os
 import time
 from datetime import datetime, timedelta
 import html
-from urllib.parse import urljoin # Wichtiger Import für HLS-Proxy
+from urllib.parse import urljoin, urlparse
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
@@ -123,13 +123,14 @@ def check_web_ui_auth():
         '/static/',
         '/login',
         '/setup',
-        '/player_api.php', # XC API
-        '/live/',           # XC Live Stream
-        '/movie/',          # XC VOD Stream
-        '/playlist.m3u',    # M3U Playlist
-        '/play_live_m3u/',  # M3U Live Stream
-        '/epg.xml',         # M3U EPG
-        '/xmltv.php'        # XC EPG
+        '/player_api.php',     # XC API
+        '/live/',               # XC Live Stream
+        '/movie/',              # XC VOD Stream
+        '/vod-segment-proxy/',  # <-- NEU: Stufe 2 VOD-Proxy
+        '/playlist.m3u',        # M3U Playlist
+        '/play_live_m3u/',      # M3U Live Stream
+        '/epg.xml',             # M3U EPG
+        '/xmltv.php'            # XC EPG
     ]
     
     for path in public_paths:
@@ -147,20 +148,15 @@ def check_web_ui_auth():
 
 # --- TIVIMATE STREAMING ENDPOINTS (PUBLIC) ---
 
-# --- METHODE 1: HLS-Proxy (Nur für LIVE) ---
-def _get_hls_playlist_response(session, stream_url):
-    """
-    (Für Live-Streams)
-    Holt, umschreibt und bedient eine HLS-Playlist, indem sie
-    alle Segment-URLs in absolute Pfade umwandelt.
-    Spart Server-Bandbreite.
-    """
+# --- METHODE 1: HLS-Proxy (Für LIVE) ---
+def _get_live_hls_response(session, stream_url):
+    """(Für Live-Streams) Schreibt Playlist auf absolute Twitch-CDN-Pfade um."""
     try:
         response = session.http.get(stream_url)
         response.raise_for_status()
         media_playlist_text = response.text
     except Exception as e:
-        print(f"[HLS-Proxy] ERROR: Failed to fetch media playlist '{stream_url}': {e}")
+        print(f"[HLS-Proxy-Live] ERROR: Failed to fetch media playlist '{stream_url}': {e}")
         return "Error fetching media playlist", 500
 
     base_url = stream_url.rsplit('/', 1)[0] + '/'
@@ -179,23 +175,41 @@ def _get_hls_playlist_response(session, stream_url):
     
     return Response(
         '\n'.join(output_playlist), 
-        mimetype='application/vnd.apple.mpegurl' # HLS Mimetype
+        mimetype='application/vnd.apple.mpegurl'
     )
 
-# --- METHODE 2: Full-Proxy (Nur für VOD) ---
-def generate_stream_data(stream_fd):
-    """
-    (Für VOD-Streams)
-    Yields chunks of stream data.
-    """
+# --- METHODE 2: VOD-Playlist-Rewriter (STUFE 1) ---
+def _get_vod_playlist_response(session, stream_id, stream_url):
+    """(Für VOD-Streams) Schreibt Playlist auf den /vod-segment-proxy/ um."""
     try:
-        while True:
-            data = stream_fd.read(4096)
-            if not data:
-                break
-            yield data
-    finally:
-        stream_fd.close()
+        response = session.http.get(stream_url)
+        response.raise_for_status()
+        media_playlist_text = response.text
+    except Exception as e:
+        print(f"[HLS-Proxy-VOD1] ERROR: Failed to fetch media playlist '{stream_url}': {e}")
+        return "Error fetching media playlist", 500
+
+    output_playlist = []
+    
+    for line in media_playlist_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        
+        if line.startswith('#'):
+            output_playlist.append(line)
+        else:
+            # line ist z.B. "segment1.ts?token=..." oder "sub/playlist.m3u8?..."
+            # Wir extrahieren nur den Pfad-Teil
+            segment_path = urlparse(line).path
+            # Wir bauen die neue URL, die auf unseren Stufe-2-Proxy zeigt
+            proxy_url = f"/vod-segment-proxy/{stream_id}/{segment_path}"
+            output_playlist.append(proxy_url)
+    
+    return Response(
+        '\n'.join(output_playlist), 
+        mimetype='application/vnd.apple.mpegurl'
+    )
 
 
 # --- Live Streams (Nutzt HLS-Proxy) ---
@@ -223,14 +237,14 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
             print(f"[Play-Live-XC]: Stream not found for {login_name} (ID: {stream_id})")
             return "Stream offline or not found", 404
             
-        # Nutze HLS-Proxy-Funktion
-        return _get_hls_playlist_response(session, streams["best"].url)
+        # Nutze HLS-Proxy-Funktion (Methode 1)
+        return _get_live_hls_response(session, streams["best"].url)
 
     except Exception as e:
         print(f"[Play-Live-XC] ERROR: {e}")
         return "Error opening stream", 500
 
-# --- VOD Streams (Nutzt Full-Proxy) ---
+# --- VOD Streams (Nutzt Stufe-1-Rewriter) ---
 @app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
@@ -246,7 +260,7 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
         return "VOD not found", 404
         
     twitch_vod_id = vod['vod_id']
-    print(f"[Play-VOD-XC]: Client requested FULL PROXY for VOD {twitch_vod_id} (DB-ID: {stream_id})")
+    print(f"[Play-VOD-XC]: Client requested HLS-STUFE-1 for VOD {twitch_vod_id} (DB-ID: {stream_id})")
 
     session = streamlink.Streamlink() # Frische Session
 
@@ -257,13 +271,68 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
             print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
-        # Nutze Full-Proxy-Funktion
-        stream_fd = streams["best"].open()
-        return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
+        # Nutze VOD-Playlist-Rewriter (Methode 2, Stufe 1)
+        # Wir übergeben die stream_id, damit der Rewriter sie in die URLs einbauen kann
+        return _get_vod_playlist_response(session, stream_id, streams["best"].url)
 
     except Exception as e:
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
+
+# --- NEU: VOD Segment-Proxy (STUFE 2) ---
+@app.route('/vod-segment-proxy/<int:stream_id>/<path:segment_path>')
+def vod_segment_proxy(stream_id, segment_path):
+    """
+    STUFE 2: Fängt Segment-Anfragen ab, holt eine frische Playlist
+    und leitet zur gültigen Twitch-CDN-URL weiter.
+    """
+    
+    conn = get_db_connection()
+    vod = conn.execute('SELECT vod_id FROM vod_streams WHERE id = ?', (stream_id,)).fetchone()
+    conn.close()
+    
+    if not vod:
+        print(f"[VOD-Proxy-S2] ERROR: VOD {stream_id} not in DB.")
+        return "VOD not found", 404
+        
+    twitch_vod_id = vod['vod_id']
+    
+    print(f"[VOD-Proxy-S2]: Request for segment '{segment_path}' for VOD {twitch_vod_id} (DB-ID {stream_id})")
+    
+    session = streamlink.Streamlink()
+    try:
+        streams = session.streams(f'twitch.tv/videos/{twitch_vod_id}')
+        if "best" not in streams:
+            return "Streamlink found no streams", 404
+            
+        media_playlist_url = streams["best"].url
+        base_url = media_playlist_url.rsplit('/', 1)[0] + '/'
+        
+        response = session.http.get(media_playlist_url)
+        response.raise_for_status()
+        media_playlist_text = response.text
+        
+        # Finde die Zeile, die den angeforderten Segment-Pfad enthält
+        for line in media_playlist_text.splitlines():
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            # Vergleiche den Pfad-Teil der URL in der Playlist
+            line_path = urlparse(line).path
+            if line_path.endswith(segment_path):
+                # Treffer! Baue die absolute URL mit frischem Token
+                absolute_segment_url = urljoin(base_url, line)
+                print(f"[VOD-Proxy-S2]: Redirecting to Twitch CDN.")
+                return redirect(absolute_segment_url)
+
+        print(f"[VOD-Proxy-S2] ERROR: Segment '{segment_path}' not found in fresh playlist for VOD {twitch_vod_id}.")
+        return "Segment not found in playlist", 404
+        
+    except Exception as e:
+        print(f"[VOD-Proxy-S2] ERROR: {e}")
+        return "Error proxying segment", 500
+
 
 # --- M3U Live Stream Endpoint (Nutzt HLS-Proxy) ---
 @app.route('/play_live_m3u/<int:stream_id>')
@@ -286,8 +355,8 @@ def play_live_m3u(stream_id):
             print(f"[Play-Live-M3U]: Stream not found for {login_name} (ID: {stream_id})")
             return "Stream offline or not found", 404
         
-        # Nutze HLS-Proxy-Funktion
-        return _get_hls_playlist_response(session, streams["best"].url)
+        # Nutze HLS-Proxy-Funktion (Methode 1)
+        return _get_live_hls_response(session, streams["best"].url)
         
     except Exception as e:
         print(f"[Play-Live-M3U] ERROR: {e}")
@@ -425,7 +494,7 @@ def player_api():
                 "category_id": "1", 
                 "custom_sid": "",
                 "tv_archive": 0,
-                "container_extension": "m3u8" # <-- HYBRID: Live ist HLS
+                "container_extension": "m3u8" # Live ist HLS
             })
         
         return jsonify(live_streams_json)
@@ -470,9 +539,7 @@ def player_api():
         conn.close()
         
         vod_streams_json = []
-        # --- START KORREKTUR (Fix von 'list' object has no attribute 'fetchall') ---
         for vod in vods:
-        # --- ENDE KORREKTUR ---
             vod_cat_id = category_map.get(vod['category'], "1") 
             
             vod_streams_json.append({
@@ -485,7 +552,7 @@ def player_api():
                 "rating_5based": 0,
                 "added": str(int(time.time())),
                 "category_id": vod_cat_id, 
-                "container_extension": "mp4", # <-- HYBRID: VOD ist MP4/TS (Full-Proxy)
+                "container_extension": "m3u8", # VOD ist jetzt AUCH HLS (für Seeking)
                 "custom_sid": "",
             })
             
@@ -535,7 +602,7 @@ def add_channel():
         if new_channel_row:
             conn.execute(
                 "INSERT OR IGNORE INTO live_streams (id, login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?, ?)",
-                (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
+                (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name}.title()}", 0)
             )
             conn.commit()
     except Exception as e:
