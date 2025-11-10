@@ -18,7 +18,6 @@ import sys
 app = Flask(__name__)
 
 # --- START Logging Config ---
-# Richte detailliertes Logging nach stdout ein, damit Docker es erfasst
 app.logger.setLevel(logging.INFO)
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(logging.Formatter(
@@ -32,11 +31,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-
 DB_PATH = '/data/channels.db'
 HOST_URL = os.environ.get('HOST_URL')
 
-# Keine globale Streamlink-Session, um Caching bei Anfragen zu verhindern
 app.logger.info("Gevent monkey-patching angewendet.")
 
 def get_db_connection():
-    # app.logger.debug("Versuche, DB-Verbindung zu öffnen...")
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -83,7 +80,6 @@ def generate_epg_data():
         
     # Define programs (EPG entries)
     now = datetime.utcnow()
-    # Show EPG for 24 hours
     start_time = now.strftime('%Y%m%d%H%M%S +0000')
     end_time = (now + timedelta(hours=24)).strftime('%Y%m%d%H%M%S +0000')
     
@@ -152,19 +148,19 @@ def check_web_ui_auth():
         '/static/',
         '/login',
         '/setup',
-        '/player_api.php',     # XC API
-        '/live/',               # XC Live Stream
-        '/movie/',              # XC VOD Stream
-        '/vod-segment-proxy/',  # <-- Stufe 2 VOD-Proxy
-        '/playlist.m3u',        # M3U Playlist
-        '/play_live_m3u/',      # M3U Live Stream
-        '/epg.xml',             # M3U EPG
-        '/xmltv.php'            # XC EPG
+        '/player_api.php',
+        '/live/',
+        '/movie/',
+        '/vod-segment-proxy/',
+        '/playlist.m3u',
+        '/play_live_m3u/',
+        '/epg.xml',
+        '/xmltv.php'
     ]
     
     for path in public_paths:
         if request.path.startswith(path):
-            return # Public path, no auth check needed
+            return 
 
     if not get_password_hash():
          app.logger.info(f"[Auth] Kein Passwort gesetzt, leite zu /setup um (von {request.path})")
@@ -180,38 +176,11 @@ def check_web_ui_auth():
 # --- TIVIMATE STREAMING ENDPOINTS (PUBLIC) ---
 
 # --- METHODE 1: HLS-Proxy (Für LIVE) ---
-def _get_live_hls_response(session, stream_url):
-    """(Für Live-Streams) Schreibt Playlist auf absolute Twitch-CDN-Pfade um."""
-    try:
-        app.logger.info(f"[HLS-Proxy-Live] Rufe Media-Playlist ab: {stream_url}")
-        response = session.http.get(stream_url)
-        response.raise_for_status()
-        media_playlist_text = response.text
-    except Exception as e:
-        app.logger.error(f"[HLS-Proxy-Live] ERROR: Failed to fetch media playlist '{stream_url}': {e}")
-        return "Error fetching media playlist", 500
+# --- START ÄNDERUNG: HLS-Proxy-Funktion entfernt ---
+# def _get_live_hls_response(session, stream_url):
+#     ... (entfernt)
+# --- ENDE ÄNDERUNG ---
 
-    base_url = stream_url.rsplit('/', 1)[0] + '/'
-    output_playlist = []
-    
-    segment_count = 0
-    for line in media_playlist_text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        
-        if line.startswith('#'):
-            output_playlist.append(line)
-        else:
-            segment_count += 1
-            absolute_url = urljoin(base_url, line)
-            output_playlist.append(absolute_url)
-    
-    app.logger.info(f"[HLS-Proxy-Live] Playlist mit {segment_count} Segmenten erfolgreich umgeschrieben.")
-    return Response(
-        '\n'.join(output_playlist), 
-        mimetype='application/vnd.apple.mpegurl'
-    )
 
 # --- METHODE 2: VOD-Playlist-Rewriter (STUFE 1) ---
 def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
@@ -238,10 +207,7 @@ def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
         else:
             segment_count += 1
             segment_path = urlparse(line).path
-            # --- START ÄNDERUNG ---
-            # Baue die URL mit der ECHTEN TWITCH_VOD_ID, nicht der DB-ID
             proxy_url = f"/vod-segment-proxy/{twitch_vod_id}/{segment_path}"
-            # --- ENDE ÄNDERUNG ---
             output_playlist.append(proxy_url)
     
     app.logger.info(f"[HLS-Proxy-VOD1] Playlist für VOD {twitch_vod_id} mit {segment_count} Segmenten auf lokalen Proxy umgeschrieben.")
@@ -277,29 +243,27 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
             app.logger.warning(f"[Play-Live-XC]: Streamlink fand keinen Stream für {login_name} (ID: {stream_id}). (Offline?)")
             return "Stream offline or not found", 404
             
-        app.logger.info(f"[Play-Live-XC]: Streamlink für {login_name} erfolgreich. Nutze HLS-Proxy (Methode 1).")
-        # Nutze HLS-Proxy-Funktion (Methode 1)
-        return _get_live_hls_response(session, streams["best"].url)
+        # --- START ÄNDERUNG: Nutze 302 Redirect statt HLS-Proxy ---
+        app.logger.info(f"[Play-Live-XC]: Streamlink für {login_name} erfolgreich. Sende 302 Redirect an: {streams['best'].url}")
+        return redirect(streams["best"].url)
+        # --- ENDE ÄNDERUNG ---
 
     except Exception as e:
         app.logger.error(f"[Play-Live-XC] ERROR: {e}")
         return "Error opening stream", 500
 
 # --- VOD Streams (Nutzt Stufe-1-Rewriter) ---
-# --- START ÄNDERUNG (Fix VOD 404 Race Condition) ---
-@app.route('/movie/<username>/<password>/<string:stream_id>') # Akzeptiert string VOD_ID
+@app.route('/movie/<username>/<password>/<string:stream_id>')
 @app.route('/movie/<username>/<password>/<string:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
     if not check_xc_auth(username, password):
         app.logger.warning(f"[Play-VOD-XC] Invalid credentials for user '{username}'")
         return "Invalid credentials", 401
 
-    # DB-Check entfernt. stream_id IST die twitch_vod_id
     twitch_vod_id = stream_id 
     app.logger.info(f"[Play-VOD-XC]: Client requested HLS-STUFE-1 for VOD {twitch_vod_id}")
 
     session = streamlink.Streamlink() # Frische Session
-# --- ENDE ÄNDERUNG ---
 
     try:
         streams = session.streams(f'twitch.tv/videos/{twitch_vod_id}')
@@ -308,41 +272,26 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
             app.logger.warning(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
-        # --- START ÄNDERUNG ---
-        # Nutze VOD-Playlist-Rewriter (Methode 2, Stufe 1)
-        # Wir übergeben die TWITCH_VOD_ID (twitch_vod_id) statt der DB-ID (stream_id)
         app.logger.info(f"[Play-VOD-XC]: Streamlink für VOD {twitch_vod_id} erfolgreich. Nutze Stufe-1-Rewriter.")
         return _get_vod_playlist_response(session, twitch_vod_id, streams["best"].url)
-        # --- ENDE ÄNDERUNG ---
 
     except Exception as e:
         app.logger.error(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
 
-# --- NEU: VOD Segment-Proxy (STUFE 2) ---
-# --- START ÄNDERUNG ---
-# Akzeptiert die TWITCH_VOD_ID (string) statt der DB-ID (int)
+# --- VOD Segment-Proxy (STUFE 2) ---
 @app.route('/vod-segment-proxy/<string:twitch_vod_id>/<path:segment_path>')
 def vod_segment_proxy(twitch_vod_id, segment_path):
-# --- ENDE ÄNDERUNG ---
     """
     STUFE 2: Fängt Segment-Anfragen ab, holt eine frische Playlist
     und leitet zur gültigen Twitch-CDN-URL weiter.
-    Dieser Endpunkt ist "stateless" und berührt die DB nicht.
     """
-    
-    # --- START ÄNDERUNG ---
-    # Datenbank-Check wird entfernt, da er die Race Condition verursacht
-    # --- ENDE ÄNDERUNG ---
     
     app.logger.info(f"[VOD-Proxy-S2]: Request for segment '{segment_path}' for VOD {twitch_vod_id}")
     
     session = streamlink.Streamlink()
     try:
-        # --- START ÄNDERUNG ---
-        # Benutze die twitch_vod_id direkt aus der URL
         streams = session.streams(f'twitch.tv/videos/{twitch_vod_id}')
-        # --- ENDE ÄNDERUNG ---
         
         if "best" not in streams:
             app.logger.warning(f"[VOD-Proxy-S2] Streamlink found no streams for VOD {twitch_vod_id}")
@@ -351,24 +300,19 @@ def vod_segment_proxy(twitch_vod_id, segment_path):
         media_playlist_url = streams["best"].url
         base_url = media_playlist_url.rsplit('/', 1)[0] + '/'
         
-        # app.logger.debug(f"[VOD-Proxy-S2] Fetching fresh media playlist: {media_playlist_url}")
         response = session.http.get(media_playlist_url)
         response.raise_for_status()
         media_playlist_text = response.text
         
-        # Finde die Zeile, die den angeforderten Segment-Pfad enthält
         for line in media_playlist_text.splitlines():
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
             
-            # Vergleiche den Pfad-Teil der URL in der Playlist
             line_path = urlparse(line).path
             if line_path.endswith(segment_path):
-                # Treffer! Baue die absolute URL mit frischem Token
                 absolute_segment_url = urljoin(base_url, line)
                 app.logger.info(f"[VOD-Proxy-S2]: Redirecting to Twitch CDN for segment.")
-                # app.logger.debug(f"[VOD-Proxy-S2] Redirect URL: {absolute_segment_url}")
                 return redirect(absolute_segment_url)
 
         app.logger.error(f"[VOD-Proxy-S2] ERROR: Segment '{segment_path}' not found in fresh playlist for VOD {twitch_vod_id}.")
@@ -401,9 +345,10 @@ def play_live_m3u(stream_id):
             app.logger.warning(f"[Play-Live-M3U]: Streamlink fand keinen Stream für {login_name} (ID: {stream_id}). (Offline?)")
             return "Stream offline or not found", 404
         
-        app.logger.info(f"[Play-Live-M3U]: Streamlink für {login_name} erfolgreich. Nutze HLS-Proxy (Methode 1).")
-        # Nutze HLS-Proxy-Funktion (Methode 1)
-        return _get_live_hls_response(session, streams["best"].url)
+        # --- START ÄNDERUNG: Nutze 302 Redirect statt HLS-Proxy ---
+        app.logger.info(f"[Play-Live-M3U]: Streamlink für {login_name} erfolgreich. Sende 302 Redirect an: {streams['best'].url}")
+        return redirect(streams["best"].url)
+        # --- ENDE ÄNDERUNG ---
         
     except Exception as e:
         app.logger.error(f"[Play-Live-M3U] ERROR: {e}")
@@ -428,7 +373,6 @@ def generate_m3u():
     streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
     conn.close()
     
-    # Insert EPG-URL correctly
     epg_url = f"{HOST_URL}/epg.xml?password={password}"
     m3u_content = [f'#EXTM3U url-tvg="{epg_url}"']
     
@@ -552,7 +496,9 @@ def player_api():
                 "category_id": "1", 
                 "custom_sid": "",
                 "tv_archive": 0,
-                "container_extension": "m3u8" # Live ist HLS
+                # --- START ÄNDERUNG: Container-Extension irrelevant bei Redirect ---
+                "container_extension": "m3u8" 
+                # --- ENDE ÄNDERUNG ---
             })
         
         return jsonify(live_streams_json)
@@ -602,22 +548,19 @@ def player_api():
         for vod in vods:
             vod_cat_id = category_map.get(vod['category'], "1") 
             
-            # --- START ÄNDERUNG (Fix VOD 404 Race Condition) ---
-            # Sende die vod_id (String) statt der db_id (Int) an den Player
             vod_streams_json.append({
                 "num": vod['id'],
                 "name": vod['title'],
                 "stream_type": "movie", 
-                "stream_id": vod['vod_id'], # <-- *** FIX ***
+                "stream_id": vod['vod_id'], 
                 "stream_icon": vod['thumbnail_url'] or None, 
                 "rating": 0,
                 "rating_5based": 0,
                 "added": str(int(time.time())),
                 "category_id": vod_cat_id, 
-                "container_extension": "m3u8", # VOD ist jetzt AUCH HLS (für Seeking)
+                "container_extension": "m3u8",
                 "custom_sid": "",
             })
-            # --- ENDE ÄNDERUNG ---
             
         return jsonify(vod_streams_json)
 
@@ -710,7 +653,7 @@ def get_settings():
     conn.close()
     settings = {row['key']: row['value'] for row in settings_raw}
     if 'twitch_client_secret' in settings:
-        settings['twitch_client_secret'] = "" # Secret nie an Client senden
+        settings['twitch_client_secret'] = "" 
     app.logger.info(f"[WebAPI] GET /api/settings: Lade Einstellungen.")
     return jsonify(settings)
 
