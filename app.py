@@ -446,7 +446,7 @@ def player_api():
                 "category_id": "1", 
                 "custom_sid": "",
                 "tv_archive": 0,
-                "container_extension": "m3u8"
+                "container_extension": "m3u8" # Wichtig für HLS
             })
         
         return jsonify(live_streams_json)
@@ -491,7 +491,7 @@ def player_api():
         conn.close()
         
         vod_streams_json = []
-        for vod in vods:
+        for vod in vods.fetchall():
             vod_cat_id = category_map.get(vod['category'], "1") 
             
             vod_streams_json.append({
@@ -504,7 +504,7 @@ def player_api():
                 "rating_5based": 0,
                 "added": str(int(time.time())),
                 "category_id": vod_cat_id, 
-                "container_extension": "m3u8", 
+                "container_extension": "m3u8", # Wichtig für HLS
                 "custom_sid": "",
             })
             
