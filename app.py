@@ -11,18 +11,14 @@ import os
 import time
 from datetime import datetime, timedelta
 import html
-from urllib.parse import urljoin # Wichtiger Import
+from urllib.parse import urljoin # Wichtiger Import für HLS-Proxy
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
 DB_PATH = '/data/channels.db'
 HOST_URL = os.environ.get('HOST_URL')
 
-# --- START ÄNDERUNG ---
-# Die globale Streamlink-Session wird entfernt, um Caching zu verhindern.
-# Jede Anfrage erstellt jetzt ihre eigene, frische Session.
-# streamlink_session = streamlink.Streamlink() 
-# --- ENDE ÄNDERUNG ---
+# Keine globale Streamlink-Session, um Caching bei Anfragen zu verhindern
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -151,53 +147,58 @@ def check_web_ui_auth():
 
 # --- TIVIMATE STREAMING ENDPOINTS (PUBLIC) ---
 
-# --- START ÄNDERUNG ---
-# Die Funktion muss jetzt die (frische) Session übergeben bekommen,
-# damit sie deren http-Client für den Abruf nutzen kann.
+# --- METHODE 1: HLS-Proxy (Nur für LIVE) ---
 def _get_hls_playlist_response(session, stream_url):
-# --- ENDE ÄNDERUNG ---
     """
-    NEUE ZENTRALE FUNKTION:
+    (Für Live-Streams)
     Holt, umschreibt und bedient eine HLS-Playlist, indem sie
     alle Segment-URLs in absolute Pfade umwandelt.
-    Löst das 404-Problem und spart Server-Bandbreite.
+    Spart Server-Bandbreite.
     """
     try:
-        # 1. Medien-Playlist über die übergebene Session abrufen
-        # --- START ÄNDERUNG ---
         response = session.http.get(stream_url)
-        # --- ENDE ÄNDERUNG ---
         response.raise_for_status()
         media_playlist_text = response.text
     except Exception as e:
         print(f"[HLS-Proxy] ERROR: Failed to fetch media playlist '{stream_url}': {e}")
         return "Error fetching media playlist", 500
 
-    # 2. Basis-URL zur Auflösung relativer Pfade berechnen
     base_url = stream_url.rsplit('/', 1)[0] + '/'
-    
     output_playlist = []
-    # 3. Playlist parsen und umschreiben
+    
     for line in media_playlist_text.splitlines():
         line = line.strip()
         if not line:
             continue
         
         if line.startswith('#'):
-            # Es ist ein HLS-Tag, wir übernehmen ihn
             output_playlist.append(line)
         else:
-            # Es ist eine URL (Segment oder Sub-Playlist), wir machen sie absolut
             absolute_url = urljoin(base_url, line)
             output_playlist.append(absolute_url)
     
-    # 4. Die umgeschriebene Playlist zurückgeben
     return Response(
         '\n'.join(output_playlist), 
         mimetype='application/vnd.apple.mpegurl' # HLS Mimetype
     )
 
-# --- Live Streams ---
+# --- METHODE 2: Full-Proxy (Nur für VOD) ---
+def generate_stream_data(stream_fd):
+    """
+    (Für VOD-Streams)
+    Yields chunks of stream data.
+    """
+    try:
+        while True:
+            data = stream_fd.read(4096)
+            if not data:
+                break
+            yield data
+    finally:
+        stream_fd.close()
+
+
+# --- Live Streams (Nutzt HLS-Proxy) ---
 @app.route('/live/<username>/<password>/<int:stream_id>')
 @app.route('/live/<username>/<password>/<int:stream_id>.<ext>')
 def play_live_stream_xc(username, password, stream_id, ext=None):
@@ -214,30 +215,22 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     login_name = channel['login_name']
     print(f"[Play-Live-XC]: Client requested HLS for {login_name} (DB-ID: {stream_id})")
     
-    # --- START ÄNDERUNG ---
-    # Erstelle eine FRISCHE, LOKALE Session für diese Anfrage
-    session = streamlink.Streamlink()
-    # --- ENDE ÄNDERUNG ---
+    session = streamlink.Streamlink() # Frische Session
     
     try:
-        # --- START ÄNDERUNG ---
         streams = session.streams(f'twitch.tv/{login_name}')
-        # --- ENDE ÄNDERUNG ---
-        
         if "best" not in streams:
             print(f"[Play-Live-XC]: Stream not found for {login_name} (ID: {stream_id})")
             return "Stream offline or not found", 404
             
-        # --- START ÄNDERUNG ---
-        # Nutze die neue HLS-Proxy-Funktion und übergib die frische Session
+        # Nutze HLS-Proxy-Funktion
         return _get_hls_playlist_response(session, streams["best"].url)
-        # --- ENDE ÄNDERUNG ---
 
     except Exception as e:
         print(f"[Play-Live-XC] ERROR: {e}")
         return "Error opening stream", 500
 
-# --- VOD Streams ---
+# --- VOD Streams (Nutzt Full-Proxy) ---
 @app.route('/movie/<username>/<password>/<int:stream_id>')
 @app.route('/movie/<username>/<password>/<int:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
@@ -253,32 +246,26 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
         return "VOD not found", 404
         
     twitch_vod_id = vod['vod_id']
-    print(f"[Play-VOD-XC]: Client requested HLS for VOD {twitch_vod_id} (DB-ID: {stream_id})")
+    print(f"[Play-VOD-XC]: Client requested FULL PROXY for VOD {twitch_vod_id} (DB-ID: {stream_id})")
 
-    # --- START ÄNDERUNG ---
-    # Erstelle eine FRISCHE, LOKALE Session für diese Anfrage
-    session = streamlink.Streamlink()
-    # --- ENDE ÄNDERUNG ---
+    session = streamlink.Streamlink() # Frische Session
 
     try:
-        # --- START ÄNDERUNG ---
         streams = session.streams(f'twitch.tv/videos/{twitch_vod_id}')
-        # --- ENDE ÄNDERUNG ---
         
         if "best" not in streams:
             print(f"[Play-VOD-XC]: VOD not found on Twitch: {twitch_vod_id}")
             return "VOD not found", 404
             
-        # --- START ÄNDERUNG ---
-        # Nutze die HLS-Proxy-Funktion und übergib die frische Session
-        return _get_hls_playlist_response(session, streams["best"].url)
-        # --- ENDE ÄNDERUNG ---
+        # Nutze Full-Proxy-Funktion
+        stream_fd = streams["best"].open()
+        return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
     except Exception as e:
         print(f"[Play-VOD-XC] ERROR: {e}")
         return "Error opening VOD stream", 500
 
-# --- M3U Live Stream Endpoint ---
+# --- M3U Live Stream Endpoint (Nutzt HLS-Proxy) ---
 @app.route('/play_live_m3u/<int:stream_id>')
 def play_live_m3u(stream_id):
     conn = get_db_connection()
@@ -291,24 +278,16 @@ def play_live_m3u(stream_id):
     login_name = channel['login_name']
     print(f"[Play-Live-M3U]: Client requested HLS for {login_name} (DB-ID: {stream_id})")
     
-    # --- START ÄNDERUNG ---
-    # Erstelle eine FRISCHE, LOKALE Session für diese Anfrage
-    session = streamlink.Streamlink()
-    # --- ENDE ÄNDERUNG ---
+    session = streamlink.Streamlink() # Frische Session
     
     try:
-        # --- START ÄNDERUNG ---
         streams = session.streams(f'twitch.tv/{login_name}')
-        # --- ENDE ÄNDERUNG ---
-        
         if "best" not in streams:
             print(f"[Play-Live-M3U]: Stream not found for {login_name} (ID: {stream_id})")
             return "Stream offline or not found", 404
         
-        # --- START ÄNDERUNG ---
-        # Nutze auch hier die HLS-Proxy-Funktion und übergib die frische Session
+        # Nutze HLS-Proxy-Funktion
         return _get_hls_playlist_response(session, streams["best"].url)
-        # --- ENDE ÄNDERUNG ---
         
     except Exception as e:
         print(f"[Play-Live-M3U] ERROR: {e}")
@@ -446,7 +425,7 @@ def player_api():
                 "category_id": "1", 
                 "custom_sid": "",
                 "tv_archive": 0,
-                "container_extension": "m3u8" # Wichtig für HLS
+                "container_extension": "m3u8" # <-- HYBRID: Live ist HLS
             })
         
         return jsonify(live_streams_json)
@@ -491,8 +470,7 @@ def player_api():
         conn.close()
         
         vod_streams_json = []
-        # --- START KORREKTUR ---
-        # Entferne das doppelte .fetchall()
+        # --- START KORREKTUR (Fix von 'list' object has no attribute 'fetchall') ---
         for vod in vods:
         # --- ENDE KORREKTUR ---
             vod_cat_id = category_map.get(vod['category'], "1") 
@@ -507,7 +485,7 @@ def player_api():
                 "rating_5based": 0,
                 "added": str(int(time.time())),
                 "category_id": vod_cat_id, 
-                "container_extension": "m3u8", # Wichtig für HLS
+                "container_extension": "mp4", # <-- HYBRID: VOD ist MP4/TS (Full-Proxy)
                 "custom_sid": "",
             })
             
