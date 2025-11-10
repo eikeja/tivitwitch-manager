@@ -7,7 +7,7 @@ cursor = conn.cursor()
 
 print(f"Initializing database at {DB_PATH}")
 
-# --- 1. Create tables if they don't exist ---
+# --- 1. Create tables ---
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS live_streams (
     login_name TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
     is_live BOOLEAN NOT NULL DEFAULT 0,
-    category TEXT NOT NULL DEFAULT 'Twitch Live'
+    category TEXT NOT NULL DEFAULT 'Twitch Live',
+    epg_channel_id TEXT,
+    stream_title TEXT,
+    stream_game TEXT
 )
 ''')
 
@@ -44,32 +47,19 @@ CREATE TABLE IF NOT EXISTS vod_streams (
 )
 ''')
 
-# --- 2. Migration block (adds columns if they are missing) ---
+# --- 2. Migration block ---
 print("Running database migrations (if needed)...")
-try:
-    cursor.execute("ALTER TABLE live_streams ADD COLUMN epg_channel_id TEXT")
-    print("  > Added 'epg_channel_id' column to live_streams.")
-except sqlite3.OperationalError:
-    pass # Column already exists, all good
+def add_column(table, column, type):
+    try:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type}")
+        print(f"  > Added '{column}' column to {table}.")
+    except sqlite3.OperationalError:
+        pass # Column already exists
 
-try:
-    cursor.execute("ALTER TABLE live_streams ADD COLUMN stream_title TEXT")
-    print("  > Added 'stream_title' column to live_streams.")
-except sqlite3.OperationalError:
-    pass # Column already exists, all good
-
-try:
-    cursor.execute("ALTER TABLE live_streams ADD COLUMN stream_game TEXT")
-    print("  > Added 'stream_game' column to live_streams.")
-except sqlite3.OperationalError:
-    pass # Column already exists, all good
-
-# --- NEW MIGRATION FOR VODS ---
-try:
-    cursor.execute("ALTER TABLE vod_streams ADD COLUMN thumbnail_url TEXT")
-    print("  > Added 'thumbnail_url' column to vod_streams.")
-except sqlite3.OperationalError:
-    pass # Column already exists, all good
+add_column('live_streams', 'epg_channel_id', 'TEXT')
+add_column('live_streams', 'stream_title', 'TEXT')
+add_column('live_streams', 'stream_game', 'TEXT')
+add_column('vod_streams', 'thumbnail_url', 'TEXT')
 
 
 # --- 3. Add default settings ---
@@ -78,7 +68,8 @@ default_settings = {
     'twitch_client_id': '',
     'twitch_client_secret': '',
     'vod_count_per_channel': '5',
-    'm3u_enabled': 'false'
+    'm3u_enabled': 'false',
+    'live_stream_mode': 'proxy' # <-- DEIN NEUES FEATURE
 }
 
 for key, value in default_settings.items():

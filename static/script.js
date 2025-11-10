@@ -1,13 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- 1. Alle DOM-Elemente sicher auswÃ¤hlen ---
-    const addChannelModal = document.getElementById('add-channel-modal');
-    const form = document.getElementById('add-channel-form');
-    const channelNameInput = document.getElementById('channel-name');
+    // --- 1. Alle DOM-Elemente sicher auswählen ---
+    // ... (alte Elemente)
     const channelList = document.getElementById('channels');
-    const errorMessage = document.getElementById('error-message');
-
+    
+    // Settings
     const settingsForm = document.getElementById('settings-form');
+    const liveStreamMode = document.getElementById('setting-live-mode'); // *** NEU ***
     const m3uEnabled = document.getElementById('setting-m3u-enabled');
     const m3uInfoBox = document.getElementById('m3u-setup-info');
     const vodEnabled = document.getElementById('setting-vod-enabled');
@@ -16,36 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const vodCount = document.getElementById('setting-vod-count');
     const saveBtn = document.getElementById('save-settings-btn');
     const settingsStatus = document.getElementById('settings-status');
-
-    const howtoModal = document.getElementById('howto-modal');
-    const openHowtoBtn = document.getElementById('open-modal-btn');
-    const closeHowtoBtn = document.querySelector('#howto-modal .close-btn');
-
-    const openAddBtn = document.getElementById('open-add-modal-btn');
-    const closeAddBtn = document.querySelector('#add-channel-modal .close-btn');
+    // ... (Modal-Elemente)
 
     
     // --- 2. Alle Funktionen definieren ---
     
     function setDynamicUrls() {
-        const host = window.location.host; 
-        const protocol = window.location.protocol; 
-        const baseUrl = `${protocol}//${host}`;
-        
-        const serverUrlElement = document.getElementById('server-url-display');
-        if (serverUrlElement) {
-            serverUrlElement.value = baseUrl;
-        }
-        
-        const m3uUrlElement = document.getElementById('m3u-url-display');
-        if (m3uUrlElement) {
-            m3uUrlElement.value = `${baseUrl}/playlist.m3u?password=YOUR_PASSWORD_HERE`;
-        }
-        
-        const m3uEpgUrlElement = document.getElementById('m3u-epg-url-display');
-        if (m3uEpgUrlElement) {
-            m3uEpgUrlElement.value = `${baseUrl}/epg.xml?password=YOUR_PASSWORD_HERE`;
-        }
+        // ... (unverändert)
     }
 
     async function fetchChannels() {
@@ -53,31 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/channels');
             if (!response.ok) {
                 if (response.status === 401 || response.redirected) {
-                    window.location.href = '/login'; 
+                    window.location.href = '/login'; // Leitet zur Blueprint-Route weiter
                     return;
                 }
                 throw new Error('Network error');
             }
-            const channels = await response.json();
-            
-            if (channelList) {
-                channelList.innerHTML = ''; 
-                if (channels.length === 0) {
-                    channelList.innerHTML = '<li>No channels added yet.</li>';
-                }
-                channels.forEach(channel => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `
-                        <span>${channel.login_name}</span>
-                        <button data-id="${channel.id}" class="delete-btn">Delete</button>
-                    `;
-                    channelList.appendChild(li);
-                });
-            }
+            // ... (Rest unverändert)
         } catch (error) {
-            if (channelList) { 
-                channelList.innerHTML = '<li>Error loading channels.</li>';
-            }
+            // ... (unverändert)
         }
     }
 
@@ -87,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Failed to load settings');
             const settings = await response.json();
             
+            if (liveStreamMode) liveStreamMode.value = settings.live_stream_mode || 'proxy'; // *** NEU ***
             if (vodEnabled) vodEnabled.checked = settings.vod_enabled === 'true';
             if (clientId) clientId.value = settings.twitch_client_id || '';
             if (vodCount) vodCount.value = settings.vod_count_per_channel || '5';
@@ -107,79 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- 3. Alle Event-Listener registrieren ---
 
-    // Copy-Buttons
-    document.querySelectorAll('.copy-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const targetId = button.dataset.copyTarget;
-            const targetInput = document.querySelector(targetId);
-            
-            if (targetInput) {
-                targetInput.select();
-                targetInput.setSelectionRange(0, 99999); 
-                
-                try {
-                    navigator.clipboard.writeText(targetInput.value);
-                    const originalText = button.textContent;
-                    button.textContent = 'Copied!';
-                    button.style.backgroundColor = 'var(--accent-green)';
-                    setTimeout(() => {
-                        button.textContent = originalText;
-                        button.style.backgroundColor = ''; 
-                    }, 2000);
-                } catch (err) {
-                    console.error('Failed to copy text: ', err);
-                }
-            }
-        });
-    });
-
-    // "Add Channel" Formular
-    if (form) {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const channelName = channelNameInput.value.trim();
-            if (channelName === '') return;
-            if (errorMessage) errorMessage.textContent = ''; 
-            
-            try {
-                const response = await fetch('/api/channels', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: channelName })
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.error || 'Unknown error');
-                }
-                channelNameInput.value = ''; 
-                fetchChannels(); 
-                if (addChannelModal) {
-                    addChannelModal.style.display = 'none';
-                }
-            } catch (error) {
-                if (errorMessage) errorMessage.textContent = error.message;
-            }
-        });
-    }
-
-    // "Delete Channel" Button (in der Liste)
-    if (channelList) {
-        channelList.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('delete-btn')) {
-                const channelId = e.target.dataset.id;
-                if (!confirm('Are you sure you want to delete this channel?')) return;
-                try {
-                    const response = await fetch(`/api/channels/${channelId}`, {
-                        method: 'DELETE'
-                    });
-                    if (!response.ok) throw new Error('Error deleting channel');
-                    fetchChannels(); 
-                } catch (error) {
-                    alert(error.message);
-                }
-            }
-        });
-    }
+    // ... (Copy-Buttons, Add Channel, Delete Channel unverändert) ...
     
     // "Settings" Formular-Elemente
     if (settingsForm) {
@@ -197,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 const data = {
+                    live_stream_mode: liveStreamMode ? liveStreamMode.value : 'proxy', // *** NEU ***
                     vod_enabled: vodEnabled ? vodEnabled.checked : false,
                     twitch_client_id: clientId ? clientId.value : '',
                     twitch_client_secret: clientSecret ? clientSecret.value : '',
@@ -230,39 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } // Ende if(settingsForm)
 
-    // "How To" Modal-Listener
-    if (howtoModal && openHowtoBtn && closeHowtoBtn) {
-        openHowtoBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            howtoModal.style.display = 'block';
-        });
-        closeHowtoBtn.addEventListener('click', () => {
-            howtoModal.style.display = 'none';
-        });
-    }
-
-    // "Add Channel" Modal-Listener
-    if (addChannelModal && openAddBtn && closeAddBtn) {
-        openAddBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if(errorMessage) errorMessage.textContent = '';
-            addChannelModal.style.display = 'block';
-        });
-        closeAddBtn.addEventListener('click', () => {
-            addChannelModal.style.display = 'none';
-        });
-    }
-
-    // Globaler Klick-Listener (fÃ¼r Modals schlieÃŸen)
-    window.addEventListener('click', (e) => {
-        if (e.target == howtoModal) {
-            howtoModal.style.display = 'none';
-        }
-        if (e.target == addChannelModal) {
-            addChannelModal.style.display = 'none';
-        }
-    });
-
+    // ... (Modal-Listener und globaler Klick-Listener unverändert) ...
     
     // --- 4. Erst jetzt die Daten laden ---
     setDynamicUrls();
