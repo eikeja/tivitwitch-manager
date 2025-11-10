@@ -75,21 +75,28 @@ def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
     current_app.logger.info(f"[HLS-Proxy-VOD1] Playlist für VOD {twitch_vod_id} mit {segment_count} Segmenten auf lokalen Proxy umgeschrieben.")
     return Response('\n'.join(output_playlist), mimetype='application/vnd.apple.mpegurl')
 
+# --- START ÄNDERUNG (Fix RuntimeError) ---
 def generate_stream_data(stream_fd):
     """(Für Live-Streams im Proxy-Modus) Yields chunks of stream data."""
-    current_app.logger.info("[Live-Proxy] Stream-Generator gestartet.")
+    # Diese Funktion läuft "außerhalb" des App-Kontexts.
+    # Verwende print() statt current_app.logger, da stdout sowieso vom Log erfasst wird.
+    
+    # current_app.logger.info("[Live-Proxy] Stream-Generator gestartet.") <-- WIRD NACH OBEN VERSCHOBEN
     try:
         while True:
             data = stream_fd.read(4096)
             if not data:
-                current_app.logger.info("[Live-Proxy] Stream beendet (keine Daten mehr).")
+                print("[Live-Proxy] Stream beendet (keine Daten mehr).")
                 break
             yield data
     except Exception as e:
-        current_app.logger.error(f"[Live-Proxy] Fehler während des Streamings: {e}")
+        # Ein "Connection reset by peer" ist normal, wenn der Client (VLC, TiviMate) die Verbindung schließt
+        if "Connection reset by peer" not in str(e):
+            print(f"[Live-Proxy] ERROR: Fehler während des Streamings: {e}")
     finally:
         stream_fd.close()
-        current_app.logger.info("[Live-Proxy] Stream-Verbindung geschlossen.")
+        print("[Live-Proxy] Stream-Verbindung geschlossen.")
+# --- ENDE ÄNDERUNG ---
 
 # --- TIVIMATE XTREAM CODES API ENDPUNKT ---
 @bp.route('/player_api.php', methods=['GET', 'POST'])
@@ -217,7 +224,6 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
         
     login_name = channel['login_name']
     
-    # *** DEIN NEUES FEATURE: Lade die Modus-Einstellung ***
     live_mode = get_setting('live_stream_mode', 'proxy') # Standard 'proxy'
     current_app.logger.info(f"[Play-Live-XC] Anfrage für {login_name} (DB-ID: {stream_id}). Modus: {live_mode}")
 
@@ -237,6 +243,12 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
             # --- MODUS 2: PROXY (Langsam, filtert Werbung) ---
             current_app.logger.info(f"[Play-Live-XC] Öffne Stream im Proxy-Modus für {login_name}.")
             stream_fd = streams["best"].open()
+            
+            # --- START ÄNDERUNG (Fix RuntimeError) ---
+            # Logge den Start des Generators *bevor* die Response zurückgegeben wird
+            current_app.logger.info("[Live-Proxy] Stream-Generator wird gestartet.")
+            # --- ENDE ÄNDERUNG ---
+            
             return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
 
     except Exception as e:
@@ -256,7 +268,6 @@ def play_live_m3u(stream_id):
         
     login_name = channel['login_name']
     
-    # *** DEIN NEUES FEATURE: Lade die Modus-Einstellung ***
     live_mode = get_setting('live_stream_mode', 'proxy')
     current_app.logger.info(f"[Play-Live-M3U] Anfrage für {login_name} (DB-ID: {stream_id}). Modus: {live_mode}")
     
@@ -274,6 +285,11 @@ def play_live_m3u(stream_id):
         else:
             current_app.logger.info(f"[Play-Live-M3U] Öffne Stream im Proxy-Modus für {login_name}.")
             stream_fd = streams["best"].open()
+            
+            # --- START ÄNDERUNG (Fix RuntimeError) ---
+            current_app.logger.info("[Live-Proxy] Stream-Generator wird gestartet.")
+            # --- ENDE ÄNDERUNG ---
+            
             return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
         
     except Exception as e:
