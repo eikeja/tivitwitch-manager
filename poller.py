@@ -15,15 +15,35 @@ import sys
 DB_PATH = '/data/channels.db'
 POLL_INTERVAL = 60 # seconds
 
-# --- START Logging Config (Standard Python Logger) ---
-# WICHTIG: Dies ist NICHT der Flask-Logger.
+# --- Helfer-Funktion (nur für Boot-Zeit) ---
+def get_startup_log_level():
+    """Liest den Log-Level aus der DB, *bevor* der Logger konfiguriert wird."""
+    level_str = 'info' # Standard
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        row = conn.execute("SELECT value FROM settings WHERE key = 'log_level'").fetchone()
+        conn.close()
+        if row and row[0] == 'error':
+            level_str = 'error'
+    except Exception as e:
+        print(f"[Poller-Boot-Warnung] Konnte Log-Level nicht aus DB lesen: {e}")
+        pass
+    
+    print(f"[Poller-Boot] Log-Level wird auf '{level_str}' gesetzt.")
+    return logging.ERROR if level_str == 'error' else logging.INFO
+
+# --- START Logging Config (Dynamisch) ---
+log_level = get_startup_log_level()
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format='%(asctime)s %(levelname)s [Poller] - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout) # Logge nach stdout, damit Docker es erfasst
+        logging.StreamHandler(sys.stdout)
     ]
 )
+logging.warning("-------------------------------------")
+logging.warning(f"Poller-Dienst startet... (Log-Level: {logging.getLevelName(log_level)})")
+logging.warning("-------------------------------------")
 # --- END Logging Config ---
 
 
@@ -130,7 +150,6 @@ def get_channel_vods(token, client_id, user_id, vod_count):
         return []
 
 def get_live_streams_info(token, client_id, user_id_map):
-    """Fetches live stream info (title, game) from the Twitch API."""
     if not user_id_map:
         return {}
         
@@ -161,7 +180,6 @@ def get_live_streams_info(token, client_id, user_id_map):
     logging.info(f"[Poller-Live] {len(live_stream_map)} Kanäle sind live.")
     return live_stream_map
 
-
 # --- Main Poller Function ---
 def update_database():
     logging.info("[Poller] Starte Datenbank-Update-Zyklus...")
@@ -174,7 +192,6 @@ def update_database():
         channels = conn.execute('SELECT id, login_name FROM channels').fetchall()
         login_names = [row['login_name'] for row in channels]
         
-        # --- 1. Get Token and User IDs ---
         token = None
         user_id_map = {}
         if (settings['vod_enabled'] or len(channels) > 0) and settings['twitch_client_id'] and settings['twitch_client_secret']:
@@ -182,15 +199,11 @@ def update_database():
             if token:
                 user_id_map = get_user_ids(token, settings['twitch_client_id'], login_names)
         
-        # --- 2. Live Stream Check ---
         logging.info(f"[Poller-Live] Prüfe Status für {len(login_names)} Live-Kanäle...")
         live_stream_info_map = {}
         if token and user_id_map:
-            login_to_user_id = user_id_map
             user_id_to_login = {v: k for k, v in user_id_map.items()}
-            
             live_stream_api_data = get_live_streams_info(token, settings['twitch_client_id'], user_id_map)
-            
             for user_id, info in live_stream_api_data.items():
                 login_name = user_id_to_login.get(user_id)
                 if login_name:
@@ -201,19 +214,12 @@ def update_database():
         for channel in channels:
             login_name = channel['login_name']
             epg_id = f"{login_name}.tv"
-            
             stream_info = live_stream_info_map.get(login_name)
             
             if stream_info: # Channel is LIVE
-                display_name = login_name.title()
-                is_live = True
-                stream_title = stream_info['title']
-                stream_game = stream_info['game']
+                display_name, is_live, stream_title, stream_game = login_name.title(), True, stream_info['title'], stream_info['game']
             else: # Channel is OFFLINE
-                display_name = f"[Offline] {login_name.title()}"
-                is_live = False
-                stream_title = None
-                stream_game = None
+                display_name, is_live, stream_title, stream_game = f"[Offline] {login_name.title()}", False, None, None
             
             cursor.execute(
                 """INSERT OR REPLACE INTO live_streams 
@@ -224,14 +230,12 @@ def update_database():
 
         logging.info(f"[Poller-Live] Live-Check abgeschlossen. {live_count} Kanäle sind live.")
 
-        # --- 3. VOD Check ---
+        # --- VOD Check ---
         if settings['vod_enabled'] and token:
             logging.info("[Poller-VOD] VOD-Feature ist aktiv. Rufe VODs ab...")
             db_vods_raw = cursor.execute('SELECT vod_id, channel_login FROM vod_streams').fetchall()
-            db_vod_map = {} 
+            db_vod_map = {row['channel_login']: set() for row in db_vods_raw}
             for row in db_vods_raw:
-                if row['channel_login'] not in db_vod_map:
-                    db_vod_map[row['channel_login']] = set()
                 db_vod_map[row['channel_login']].add(row['vod_id'])
             logging.info(f"[Poller-VOD] {len(db_vods_raw)} VODs sind aktuell in der DB.")
 
@@ -241,16 +245,14 @@ def update_database():
                 if vods:
                     vod_category = f"{login_name.title()} VODs"
                     api_vod_ids_this_channel = set()
-                    
                     new_vod_count = 0
+                    
                     for vod in vods:
                         api_vod_ids_this_channel.add(vod['id'])
-                        
                         if login_name not in db_vod_map or vod['id'] not in db_vod_map[login_name]:
                             new_vod_count += 1
                         
                         thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
-                        
                         cursor.execute(
                             "INSERT OR REPLACE INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?)",
                             (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail)
@@ -290,9 +292,8 @@ def update_database():
     finally:
         conn.close()
 
-# --- WICHTIG: Dieser Block stellt sicher, dass das Skript läuft und wartet ---
+# --- Main run loop ---
 if __name__ == "__main__":
-    logging.info("[Poller] Poller-Dienst gestartet. Warte 5s vor dem ersten Lauf...")
     gevent.sleep(5)
     while True:
         try:

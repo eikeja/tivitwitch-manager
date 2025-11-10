@@ -69,7 +69,8 @@ default_settings = {
     'twitch_client_secret': '',
     'vod_count_per_channel': '5',
     'm3u_enabled': 'false',
-    'live_stream_mode': 'proxy' # <-- DEIN NEUES FEATURE
+    'live_stream_mode': 'proxy',
+    'log_level': 'info' # <-- DEIN NEUES FEATURE
 }
 
 for key, value in default_settings.items():

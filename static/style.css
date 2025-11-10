@@ -1,8 +1,8 @@
 /* --- Global Styles --- */
 :root {
     --bg-dark-primary: #181818;   /* Netflix-Dark */
-    --bg-dark-secondary: #282828; /* Leichteres Grau fÃ¼r Karten */
-    --bg-dark-tertiary: #333333; /* FÃ¼r Inputs und Hover */
+    --bg-dark-secondary: #282828; /* Leichteres Grau für Karten */
+    --bg-dark-tertiary: #333333; /* Für Inputs und Hover */
     --text-primary: #E0E0E0;
     --text-secondary: #AAAAAA;
     --accent-purple: #8a43f7;
@@ -43,7 +43,7 @@ h3 {
     color: #ffffff;
 }
 
-/* Flaches Layout fÃ¼r Header und Setup-Box */
+/* Flaches Layout für Header und Setup-Box */
 .header,
 .setup-info {
     background-color: transparent;
@@ -173,7 +173,8 @@ hr.section-divider {
 /* Modern Inputs (Global) */
 input[type="password"],
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+#settings-form select { /* <-- SELECT HINZUGEFÜGT */
     padding: 12px;
     border: 1px solid #555;
     border-radius: var(--border-radius-small);
@@ -183,10 +184,24 @@ input[type="number"] {
     background-color: var(--bg-dark-tertiary);
     color: var(--text-primary);
     transition: var(--transition-speed);
+    -webkit-appearance: none; /* Entfernt iOS-Standard-Stil */
+    -moz-appearance: none; /* Entfernt Firefox-Standard-Stil */
+    appearance: none; /* Entfernt Standard-Stil */
 }
+/* Speziell für Select, um einen Pfeil hinzuzufügen */
+#settings-form select {
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23AAAAAA" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 24px;
+    padding-right: 40px; /* Platz für den Pfeil */
+}
+
+
 input[type="password"]:focus,
 input[type="text"]:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,
+#settings-form select:focus { /* <-- SELECT HINZUGEFÜGT */
     border-color: var(--accent-purple);
     box-shadow: 0 0 8px rgba(138, 67, 247, 0.5);
     outline: none;
@@ -260,25 +275,23 @@ input[type="number"]:focus {
 
 ul#channels { list-style-type: none; padding: 0; }
 
-/* --- KORREKTURBLOCK START --- */
 ul#channels li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 10px; /* Padding links/rechts hinzugefÃ¼gt */
+    padding: 12px 10px;
     border-bottom: 1px solid var(--border-color); 
     background-color: transparent; 
-    border-radius: var(--border-radius-small); /* Radius fÃ¼r Hover hinzugefÃ¼gt */
-    transition: var(--transition-speed); /* Animation wieder hinzugefÃ¼gt */
+    border-radius: var(--border-radius-small);
+    transition: var(--transition-speed);
 }
 ul#channels li:last-child {
     border-bottom: none; 
 }
 ul#channels li:hover {
-    background-color: var(--bg-dark-tertiary); /* Hover-Farbe wieder da */
-    transform: translateX(5px); /* Animation wieder da */
+    background-color: var(--bg-dark-tertiary);
+    transform: translateX(5px);
 }
-/* --- KORREKTURBLOCK ENDE --- */
 
 ul#channels li span { font-size: 1.1em; }
 
@@ -317,13 +330,28 @@ ul#channels li button:hover {
 }
 #settings-form .form-row:last-of-type { border-bottom: none; }
 #settings-form .form-row label { font-weight: 500; }
+
+/* Breite der Inputs/Selects in der Settings-Box */
 #settings-form input[type="text"],
-#settings-form input[type="password"] {
+#settings-form input[type="password"],
+#settings-form select { /* <-- SELECT HINZUGEFÜGT */
     width: 250px;
     font-size: 14px;
     padding: 8px 10px;
 }
-#settings-form input[type="number"] { width: 70px; font-size: 14px; padding: 8px 10px; }
+/* Spezielle Breite für Nummer-Input */
+#settings-form input[type="number"] { 
+    width: 70px; 
+    font-size: 14px; 
+    padding: 8px 10px; 
+}
+/* Select-Pfeil-Position in der Settings-Box anpassen */
+#settings-form select {
+    padding-right: 35px; /* Etwas weniger Platz für Pfeil */
+    background-position: right 5px center;
+}
+
+
 .form-footer {
     display: flex;
     justify-content: space-between;

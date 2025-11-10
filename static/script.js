@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Settings
     const settingsForm = document.getElementById('settings-form');
-    const liveStreamMode = document.getElementById('setting-live-mode'); // *** NEU ***
+    const logLevel = document.getElementById('setting-log-level'); // *** NEU ***
+    const liveStreamMode = document.getElementById('setting-live-mode');
     const m3uEnabled = document.getElementById('setting-m3u-enabled');
     const m3uInfoBox = document.getElementById('m3u-setup-info');
     const vodEnabled = document.getElementById('setting-vod-enabled');
@@ -52,15 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchChannels() {
         try {
-            // *** START ÄNDERUNG 1 ***
             const response = await fetch('/api/channels', {
                 credentials: 'same-origin'
             });
-            // *** ENDE ÄNDERUNG 1 ***
 
             if (!response.ok) {
                 if (response.status === 401 || response.redirected) {
-                    window.location.href = '/login'; // Leitet zur Blueprint-Route weiter
+                    window.location.href = '/login'; 
                     return;
                 }
                 throw new Error('Network error');
@@ -90,15 +89,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadSettings() {
         try {
-            // *** START ÄNDERUNG 2 ***
             const response = await fetch('/api/settings', {
                 credentials: 'same-origin'
             });
-            // *** ENDE ÄNDERUNG 2 ***
 
             if (!response.ok) throw new Error('Failed to load settings');
             const settings = await response.json();
             
+            if (logLevel) logLevel.value = settings.log_level || 'info'; // *** NEU ***
             if (liveStreamMode) liveStreamMode.value = settings.live_stream_mode || 'proxy';
             if (vodEnabled) vodEnabled.checked = settings.vod_enabled === 'true';
             if (clientId) clientId.value = settings.twitch_client_id || '';
@@ -155,14 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (errorMessage) errorMessage.textContent = ''; 
             
             try {
-                // *** START ÄNDERUNG 3 ***
                 const response = await fetch('/api/channels', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: channelName }),
                     credentials: 'same-origin'
                 });
-                // *** ENDE ÄNDERUNG 3 ***
 
                 const result = await response.json();
                 if (!response.ok) {
@@ -186,12 +182,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const channelId = e.target.dataset.id;
                 if (!confirm('Are you sure you want to delete this channel?')) return;
                 try {
-                    // *** START ÄNDERUNG 4 (Hier nicht zwingend, aber konsistent) ***
                     const response = await fetch(`/api/channels/${channelId}`, {
                         method: 'DELETE',
                         credentials: 'same-origin'
                     });
-                    // *** ENDE ÄNDERUNG 4 ***
 
                     if (!response.ok) throw new Error('Error deleting channel');
                     fetchChannels(); 
@@ -218,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 const data = {
+                    log_level: logLevel ? logLevel.value : 'info', // *** NEU ***
                     live_stream_mode: liveStreamMode ? liveStreamMode.value : 'proxy', 
                     vod_enabled: vodEnabled ? vodEnabled.checked : false,
                     twitch_client_id: clientId ? clientId.value : '',
@@ -227,14 +222,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    // *** START ÄNDERUNG 5 ***
                     const response = await fetch('/api/settings', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data),
                         credentials: 'same-origin'
                     });
-                    // *** ENDE ÄNDERUNG 5 ***
                     
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.error || 'Failed to save');

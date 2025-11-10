@@ -2,6 +2,7 @@ from flask import (
     Blueprint, render_template, request, jsonify, current_app
 )
 import sqlite3
+import logging # <-- Importiere logging
 from db import get_db_connection, get_all_settings
 
 bp = Blueprint('views', __name__, url_prefix='')
@@ -87,6 +88,8 @@ def api_save_settings():
     current_app.logger.info(f"[WebAPI] POST /api/settings: Speichere Einstellungen: {data}")
     conn = get_db_connection()
     
+    new_log_level_str = data.get('log_level', 'info')
+    
     try:
         def save(key, value):
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
@@ -96,16 +99,26 @@ def api_save_settings():
         save('twitch_client_id', data.get('twitch_client_id', ''))
         save('vod_count_per_channel', str(data.get('vod_count_per_channel', '5')))
         save('m3u_enabled', str(data.get('m3u_enabled', 'false')).lower())
-        
-        # *** DEIN NEUES FEATURE ***
         save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
         
-        # Speichere das Secret nur, wenn ein neues eingegeben wurde
+        # *** NEUES FEATURE ***
+        save('log_level', new_log_level_str)
+        
         if data.get('twitch_client_secret'):
             current_app.logger.info(f"[WebAPI] Ein neues Twitch-Secret wird gespeichert.")
             save('twitch_client_secret', data.get('twitch_client_secret'))
             
         conn.commit()
+        
+        # *** NEUES FEATURE: Log-Level der laufenden App dynamisch anpassen ***
+        if new_log_level_str == 'error':
+            current_app.logger.setLevel(logging.ERROR)
+            current_app.warning("Log-Level zur Laufzeit auf ERROR gesetzt.")
+        else:
+            current_app.logger.setLevel(logging.INFO)
+            current_app.logger.info("Log-Level zur Laufzeit auf INFO gesetzt.")
+        # Beachte: Der Poller wird erst beim nächsten Neustart den neuen Level annehmen.
+            
     except Exception as e:
         conn.rollback()
         current_app.logger.error(f"[WebAPI] Fehler beim Speichern der Einstellungen: {e}")
