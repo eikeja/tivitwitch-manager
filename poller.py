@@ -8,10 +8,23 @@ import streamlink
 from streamlink.exceptions import NoPluginError, PluginError
 import os
 import requests
+import logging
+import sys
 
 # --- Configuration ---
 DB_PATH = '/data/channels.db'
 POLL_INTERVAL = 60 # seconds
+
+# --- START Logging Config ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s [Poller] - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout) # Logge nach stdout, damit Docker es erfasst
+    ]
+)
+# --- END Logging Config ---
+
 
 # --- Twitch API Helper Functions ---
 TWITCH_AUTH_URL = 'https://id.twitch.tv/oauth2/token'
@@ -42,16 +55,19 @@ def get_settings():
         settings['vod_count_per_channel'] = int(settings['vod_count_per_channel'])
     except ValueError:
         settings['vod_count_per_channel'] = 5
-        
+    
+    # Log settings *without* secret
+    logging.info(f"Poller-Einstellungen geladen: VODs_Aktiv={settings['vod_enabled']}, VOD_Anzahl={settings['vod_count_per_channel']}, ClientID_gesetzt={bool(settings['twitch_client_id'])})")
     return settings
 
 def get_twitch_app_token(client_id, client_secret):
     global current_app_token, token_expires_at
     
     if current_app_token and time.time() < token_expires_at:
+        # logging.debug("Nutze gecachten Twitch App Token.")
         return current_app_token
 
-    print("[Poller-VOD]: No valid token. Requesting new Twitch App Access Token...")
+    logging.info("[Poller-VOD] Kein gültiger Token. Fordere neuen Twitch App Access Token an...")
     try:
         response = requests.post(
             TWITCH_AUTH_URL,
@@ -67,10 +83,10 @@ def get_twitch_app_token(client_id, client_secret):
         current_app_token = data['access_token']
         token_expires_at = time.time() + data['expires_in'] - 60
         
-        print("[Poller-VOD]: Successfully acquired new token.")
+        logging.info("[Poller-VOD] Erfolgreich neuen Token erhalten.")
         return current_app_token
     except Exception as e:
-        print(f"[Poller-VOD] ERROR: Failed to get Twitch token: {e}")
+        logging.error(f"[Poller-VOD] ERROR: Konnte Twitch-Token nicht abrufen: {e}")
         return None
 
 def get_user_ids(token, client_id, login_names):
@@ -80,7 +96,7 @@ def get_user_ids(token, client_id, login_names):
     user_id_map = {}
     for i in range(0, len(login_names), 100):
         chunk = login_names[i:i+100]
-        print(f"[Poller-VOD]: Fetching User IDs for {len(chunk)} channels...")
+        logging.info(f"[Poller-VOD] Rufe User-IDs für {len(chunk)} Kanäle ab...")
         try:
             headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
             params = [('login', name) for name in chunk]
@@ -93,12 +109,14 @@ def get_user_ids(token, client_id, login_names):
                 user_id_map[user['login']] = user['id']
             
         except Exception as e:
-            print(f"[Poller-VOD] ERROR: Failed to get User IDs: {e}")
+            logging.error(f"[Poller-VOD] ERROR: Konnte User-IDs nicht abrufen: {e}")
     
+    logging.info(f"[Poller-VOD] {len(user_id_map)} User-IDs von {len(login_names)} angefragten Kanälen gefunden.")
     return user_id_map
 
 def get_channel_vods(token, client_id, user_id, vod_count):
     try:
+        # logging.debug(f"Rufe {vod_count} VODs für User-ID {user_id} ab...")
         headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
         params = {
             'user_id': user_id,
@@ -110,7 +128,7 @@ def get_channel_vods(token, client_id, user_id, vod_count):
         response.raise_for_status()
         return response.json().get('data', [])
     except Exception as e:
-        print(f"[Poller-VOD] ERROR: Failed to get VODs for user {user_id}: {e}")
+        logging.error(f"[Poller-VOD] ERROR: Konnte VODs für User {user_id} nicht abrufen: {e}")
         return []
 
 def get_live_streams_info(token, client_id, user_id_map):
@@ -118,7 +136,7 @@ def get_live_streams_info(token, client_id, user_id_map):
     if not user_id_map:
         return {}
         
-    print(f"[Poller-Live]: Fetching stream info for {len(user_id_map)} channels...")
+    logging.info(f"[Poller-Live] Rufe Stream-Infos für {len(user_id_map)} Kanäle ab...")
     live_stream_map = {}
     user_ids = list(user_id_map.values())
     
@@ -140,15 +158,16 @@ def get_live_streams_info(token, client_id, user_id_map):
                 }
                 
     except Exception as e:
-        print(f"[Poller-Live] ERROR: Failed to get stream info: {e}")
+        logging.error(f"[Poller-Live] ERROR: Konnte Stream-Infos nicht abrufen: {e}")
     
+    logging.info(f"[Poller-Live] {len(live_stream_map)} Kanäle sind live.")
     return live_stream_map
 
 
 # --- Main Poller Function ---
 
 def update_database():
-    print("[Poller]: Starting database update cycle...")
+    logging.info("[Poller] Starte Datenbank-Update-Zyklus...")
     
     settings = get_settings()
     conn = get_db_connection()
@@ -167,7 +186,7 @@ def update_database():
                 user_id_map = get_user_ids(token, settings['twitch_client_id'], login_names)
         
         # --- 2. Live Stream Check (NEW LOGIC) ---
-        print(f"[Poller-Live]: Checking status for {len(login_names)} live channels...")
+        logging.info(f"[Poller-Live] Prüfe Status für {len(login_names)} Live-Kanäle...")
         live_stream_info_map = {}
         if token and user_id_map:
             # Swap User-IDs to Login-Names for easier reference
@@ -210,28 +229,34 @@ def update_database():
                 (channel['id'], login_name, epg_id, display_name, is_live, stream_title, stream_game)
             )
 
-        print(f"[Poller-Live]: Live check complete. {live_count} channels are live.")
+        logging.info(f"[Poller-Live] Live-Check abgeschlossen. {live_count} Kanäle sind live.")
 
         # --- 3. VOD Check ---
         if settings['vod_enabled'] and token:
-            print("[Poller-VOD]: VOD feature is enabled. Fetching VODs...")
+            logging.info("[Poller-VOD] VOD-Feature ist aktiv. Rufe VODs ab...")
             db_vods_raw = cursor.execute('SELECT vod_id, channel_login FROM vod_streams').fetchall()
             db_vod_map = {} 
             for row in db_vods_raw:
                 if row['channel_login'] not in db_vod_map:
                     db_vod_map[row['channel_login']] = set()
                 db_vod_map[row['channel_login']].add(row['vod_id'])
+            logging.info(f"[Poller-VOD] {len(db_vods_raw)} VODs sind aktuell in der DB.")
 
             for login_name, user_id in user_id_map.items():
                 vods = get_channel_vods(token, settings['twitch_client_id'], user_id, settings['vod_count_per_channel'])
                 
                 if vods:
-                    # print(f"[Poller-VOD]: Found {len(vods)} VODs for {login_name}.") # (Becomes too verbose)
+                    # logging.info(f"[Poller-VOD]: Found {len(vods)} VODs for {login_name}.") # (Becomes too verbose)
                     vod_category = f"{login_name.title()} VODs"
                     api_vod_ids_this_channel = set()
                     
+                    new_vod_count = 0
                     for vod in vods:
                         api_vod_ids_this_channel.add(vod['id'])
+                        
+                        # Prüfen ob VOD neu ist
+                        if login_name not in db_vod_map or vod['id'] not in db_vod_map[login_name]:
+                            new_vod_count += 1
                         
                         # --- START OF CHANGE ---
                         # NEW: Format thumbnail URL
@@ -246,11 +271,14 @@ def update_database():
                         )
                         # --- END OF CHANGE ---
                     
+                    if new_vod_count > 0:
+                        logging.info(f"[Poller-VOD] {new_vod_count} neue VODs für {login_name} hinzugefügt.")
+                        
                     db_vods_this_channel = db_vod_map.get(login_name, set())
                     vods_to_delete = db_vods_this_channel - api_vod_ids_this_channel
                     
                     if vods_to_delete:
-                        print(f"[Poller-VOD]: Pruning {len(vods_to_delete)} old VODs for {login_name}.")
+                        logging.info(f"[Poller-VOD] Lösche {len(vods_to_delete)} alte VODs für {login_name}.")
                         for old_vod_id in vods_to_delete:
                             cursor.execute("DELETE FROM vod_streams WHERE vod_id = ?", (old_vod_id,))
                 
@@ -258,28 +286,29 @@ def update_database():
             
             removed_channels = set(db_vod_map.keys()) - set(user_id_map.keys())
             if removed_channels:
-                 print(f"[Poller-VOD]: Pruning VODs for removed channels: {removed_channels}")
+                 logging.info(f"[Poller-VOD] Lösche VODs für entfernte Kanäle: {removed_channels}")
                  for removed_channel in removed_channels:
                      cursor.execute("DELETE FROM vod_streams WHERE channel_login = ?", (removed_channel,))
         
         elif settings['vod_enabled']:
-            print("[Poller-VOD]: VODs are enabled, but Client ID or Secret are missing. Skipping VOD fetch.")
+            logging.warning("[Poller-VOD] VODs sind aktiviert, aber Client ID oder Secret fehlen. Überspringe VOD-Abruf.")
         else:
-             print("[Poller-VOD]: VOD feature is disabled. Skipping.")
+             logging.info("[Poller-VOD] VOD-Feature ist deaktiviert. Überspringe.")
              cursor.execute("DELETE FROM vod_streams")
 
         conn.commit()
-        print("[Poller]: Database update successful.")
+        logging.info("[Poller] Datenbank-Update erfolgreich abgeschlossen.")
 
     except Exception as e:
-        print(f"[Poller] FATAL ERROR during update: {e}")
+        logging.critical(f"[Poller] FATAL ERROR während des Update-Zyklus: {e}")
         conn.rollback()
     finally:
         conn.close()
 
 if __name__ == "__main__":
-    print("[Poller]: Service started. Waiting 5s before first poll...")
+    logging.info("[Poller] Poller-Dienst gestartet. Warte 5s vor dem ersten Lauf...")
     gevent.sleep(5)
     while True:
         update_database()
+        # logging.debug(f"Nächster Poll-Lauf in {POLL_INTERVAL} Sekunden.")
         gevent.sleep(POLL_INTERVAL)
