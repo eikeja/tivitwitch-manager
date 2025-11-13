@@ -70,7 +70,7 @@ h3 {
 }
 
 .github-icon {
-    color: var(--text-secondary);
+    color: #ffffff;
     transition: color 0.2s ease-out;
     display: inline-block;
     width: 28px;
@@ -78,7 +78,7 @@ h3 {
 }
 
 .github-icon:hover {
-    color: var(--text-primary);
+    color: #ffffff;
 }
 
 .github-icon svg {
