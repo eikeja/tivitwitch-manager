@@ -2,7 +2,7 @@ from flask import (
     Blueprint, render_template, request, session, redirect, url_for, flash, g, current_app
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-from db import get_db_connection, get_password_hash
+from db import get_db, get_password_hash
 
 bp = Blueprint('auth', __name__)
 
@@ -18,7 +18,7 @@ def setup():
             return redirect(url_for('auth.setup'))
             
         pw_hash = generate_password_hash(password)
-        conn = get_db_connection()
+        conn = get_db()
         conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ('password_hash', pw_hash))
         conn.commit()
         conn.close()

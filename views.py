@@ -3,7 +3,7 @@ from flask import (
 )
 import sqlite3
 import logging
-from db import get_db_connection, get_all_settings
+from db import get_db, get_all_settings
 
 bp = Blueprint('views', __name__, url_prefix='')
 
@@ -16,9 +16,8 @@ def index():
 
 @bp.route('/api/channels', methods=['GET'])
 def get_channels():
-    conn = get_db_connection()
+    conn = get_db()
     channels = conn.execute('SELECT * FROM channels ORDER BY login_name').fetchall()
-    conn.close()
     current_app.logger.info("[WebAPI] GET /api/channels (Loading channels)")
     return jsonify([dict(ix) for ix in channels])
 
@@ -31,12 +30,11 @@ def add_channel():
         
     login_name = new_channel.strip().lower()
     current_app.logger.info(f"[WebAPI] POST /api/channels: Attempting to add channel '{login_name}'.")
-    conn = get_db_connection()
+    conn = get_db()
     try:
         conn.execute('INSERT INTO channels (login_name) VALUES (?)', (login_name,))
         conn.commit()
     except sqlite3.IntegrityError:
-        conn.close()
         current_app.logger.warning(f"[WebAPI] POST /api/channels: Channel '{login_name}' already exists.")
         return jsonify({'error': 'Channel already exists'}), 409
     
@@ -52,7 +50,7 @@ def add_channel():
     except Exception as e:
         current_app.logger.error(f"[WebAPI] Error adding to live_streams table: {e}")
     finally:
-        conn.close()
+        
         
     current_app.logger.info(f"[WebAPI] Channel '{login_name}' added successfully.")
     return jsonify({'success': f"Channel '{login_name}' added"}), 201
@@ -60,7 +58,7 @@ def add_channel():
 @bp.route('/api/channels/<int:channel_id>', methods=['DELETE'])
 def delete_channel(channel_id):
     current_app.logger.info(f"[WebAPI] DELETE /api/channels/{channel_id}: Attempting to delete channel.")
-    conn = get_db_connection()
+    conn = get_db()
     channel = conn.execute('SELECT login_name FROM channels WHERE id = ?', (channel_id,)).fetchone()
     if channel:
         current_app.logger.info(f"[WebAPI] Deleting VODs for channel '{channel['login_name']}'.")
@@ -70,7 +68,6 @@ def delete_channel(channel_id):
     conn.execute('DELETE FROM live_streams WHERE id = ?', (channel_id,))
     
     conn.commit()
-    conn.close()
     current_app.logger.info(f"[WebAPI] Channel {channel_id} deleted successfully.")
     return jsonify({'success': 'Channel deleted'}), 200
 
@@ -86,7 +83,7 @@ def api_save_settings():
     """Saves settings from the Web UI."""
     data = request.json
     current_app.logger.info(f"[WebAPI] POST /api/settings: Saving settings: {data}")
-    conn = get_db_connection()
+    conn = get_db()
     
     new_log_level_str = data.get('log_level', 'info')
     

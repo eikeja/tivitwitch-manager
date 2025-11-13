@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-DB_PATH = '/data/channels.db'
+DB_PATH = 'instance/channels.db'
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
