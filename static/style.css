@@ -78,7 +78,7 @@ h3 {
 }
 
 .github-icon:hover {
-    color: #ffffff;
+    color: var(--accent-purple);
 }
 
 .github-icon svg {
