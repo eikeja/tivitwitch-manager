@@ -50,9 +50,7 @@ def add_channel():
     except Exception as e:
         current_app.logger.error(f"[WebAPI] Error adding to live_streams table: {e}")
     finally:
-        
-        
-    current_app.logger.info(f"[WebAPI] Channel '{login_name}' added successfully.")
+        pass
     return jsonify({'success': f"Channel '{login_name}' added"}), 201
 
 @bp.route('/api/channels/<int:channel_id>', methods=['DELETE'])

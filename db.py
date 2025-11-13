@@ -2,7 +2,7 @@ import sqlite3
 from werkzeug.security import check_password_hash
 from flask import current_app, g
 
-DB_PATH = 'instance/channels.db'
+DB_PATH = '/data/channels.db'
 
 def get_db():
     """Opens a new database connection if there is none yet for the
