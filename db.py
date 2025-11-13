@@ -1,21 +1,36 @@
 import sqlite3
 from werkzeug.security import check_password_hash
-from flask import current_app
+from flask import current_app, g
 
 DB_PATH = '/data/channels.db'
 
-def get_db_connection():
-    """Establishes a connection to the DB."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_db():
+    """Opens a new database connection if there is none yet for the
+    current application context.
+    """
+    if 'db' not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+def close_db(e=None):
+    """Closes the database again at the end of the request."""
+    db = g.pop('db', None)
+
+    if db is not None:
+        db.close()
+
+def init_app(app):
+    """Register database functions with the Flask app. This is called by
+    the application factory.
+    """
+    app.teardown_appcontext(close_db)
 
 def get_password_hash():
     """Fetches only the master password hash."""
     try:
-        conn = get_db_connection()
-        row = conn.execute("SELECT value FROM settings WHERE key = 'password_hash'").fetchone()
-        conn.close()
+        db = get_db()
+        row = db.execute("SELECT value FROM settings WHERE key = 'password_hash'").fetchone()
         return row['value'] if row else None
     except Exception as e:
         # Logger might not be available here if error happens early
@@ -25,9 +40,8 @@ def get_password_hash():
 def get_setting(key, default=None):
     """Fetches a single value from the settings table."""
     try:
-        conn = get_db_connection()
-        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
-        conn.close()
+        db = get_db()
+        row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row['value'] if row else default
     except Exception as e:
         current_app.logger.error(f"[DB-Helper] Error fetching setting '{key}': {e}")
@@ -36,9 +50,8 @@ def get_setting(key, default=None):
 def get_all_settings():
     """Fetches all settings (except the secret)."""
     try:
-        conn = get_db_connection()
-        settings_raw = conn.execute("SELECT key, value FROM settings").fetchall()
-        conn.close()
+        db = get_db()
+        settings_raw = db.execute("SELECT key, value FROM settings").fetchall()
         settings = {row['key']: row['value'] for row in settings_raw}
         if 'twitch_client_secret' in settings:
             settings['twitch_client_secret'] = "" # Never send secret to client

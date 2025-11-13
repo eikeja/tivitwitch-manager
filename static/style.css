@@ -62,6 +62,30 @@ h3 {
     padding-bottom: 15px; /* Abstand zum Trenner */
 }
 .header h1 { margin: 0; border: none; }
+
+.title-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.github-icon {
+    color: var(--text-secondary);
+    transition: color 0.2s ease-out;
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+}
+
+.github-icon:hover {
+    color: var(--text-primary);
+}
+
+.github-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
 .logout-btn {
     background-color: var(--bg-dark-tertiary);
     color: var(--text-primary);

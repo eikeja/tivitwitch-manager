@@ -1,7 +1,7 @@
 from flask import (
     Blueprint, request, jsonify, Response, redirect, current_app
 )
-from db import get_db_connection, get_setting, check_xc_auth
+from db import get_db, get_setting, check_xc_auth
 import streamlink
 import time
 from datetime import datetime, timedelta
@@ -18,9 +18,8 @@ HOST_URL = os.environ.get('HOST_URL')
 def generate_epg_data():
     """Generates the XMLTV content based on the DB."""
     current_app.logger.info("[EPG] Generating EPG data...")
-    conn = get_db_connection()
-    streams = conn.execute('SELECT * FROM live_streams WHERE is_live = 1').fetchall()
-    conn.close()
+    db = get_db()
+    streams = db.execute('SELECT * FROM live_streams WHERE is_live = 1').fetchall()
     current_app.logger.info(f"[EPG] EPG data generated for {len(streams)} live channels.")
     
     xml_content = ['<?xml version="1.0" encoding="UTF-8"?>', '<tv>']
@@ -104,7 +103,7 @@ def player_api():
         current_app.logger.critical("[XC-API] HOST_URL environment variable is not set! API will fail.")
         return "HOST_URL environment variable is not set on the server.", 500
 
-    conn = get_db_connection() 
+    db = get_db() 
     current_app.logger.info(f"[XC-API] Request from user '{username}', Action: '{action}'")
 
     # --- 1. Authentication ---
@@ -117,31 +116,26 @@ def player_api():
                 if port_str.isdigit():
                     port = port_str
 
-            conn.close() 
             return jsonify({
                 "user_info": {"username": username, "password": password, "auth": 1, "status": "Active", "exp_date": None, "is_trial": "0", "max_connections": "1", "created_at": time.time()},
                 "server_info": {"url": HOST_URL.replace("http://", "").replace("https://", "").split(':')[0], "port": port, "https": 1 if HOST_URL.startswith("https") else 0, "server_protocol": "http", "rtmp_port": "1935", "timezone": "UTC", "timestamp_now": int(time.time()), "epg_url": "/xmltv.php"}
             })
         else:
             current_app.logger.warning(f"[XC-API] User '{username}' authentication failed (get_user_info).")
-            conn.close() 
             return jsonify({"user_info": {"auth": 0, "status": "Invalid Credentials"}})
 
     if not check_xc_auth(username, password):
         current_app.logger.warning(f"[XC-API] User '{username}' authentication failed for Action '{action}'.")
-        conn.close() 
         return "Invalid credentials", 401
     
     # --- 2. Live Categories ---
     if action == 'get_live_categories':
         current_app.logger.info(f"[XC-API] Delivering live categories for user '{username}'.")
-        conn.close() 
         return jsonify([{"category_id": "1", "category_name": "Twitch Live", "parent_id": 0}])
 
     # --- 3. Live Streams ---
     if action == 'get_live_streams':
-        streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
-        conn.close() 
+        streams = db.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
         current_app.logger.info(f"[XC-API] Delivering {len(streams)} live streams for user '{username}'.")
         
         live_streams_json = []
@@ -154,13 +148,12 @@ def player_api():
         return jsonify(live_streams_json)
         
     # --- VOD Category Map ---
-    categories_raw = conn.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
+    categories_raw = db.execute('SELECT DISTINCT category FROM vod_streams ORDER BY category').fetchall()
     category_map = {row['category']: str(i + 1) for i, row in enumerate(categories_raw)}
     
     # --- 4. VOD (Movie) Categories ---
     if action == 'get_vod_categories':
         vod_categories_json = [{"category_id": cat_id, "category_name": cat_name, "parent_id": 0} for cat_name, cat_id in category_map.items()]
-        conn.close()
         current_app.logger.info(f"[XC-API] Delivering {len(vod_categories_json)} VOD categories for user '{username}'.")
         return jsonify(vod_categories_json)
         
@@ -177,14 +170,13 @@ def player_api():
                 params.append(cat_name)
         
         query += ' ORDER BY created_at DESC'
-        vods = conn.execute(query, params).fetchall()
-        conn.close()
+        vods = db.execute(query, params).fetchall()
         current_app.logger.info(f"[XC-API] Delivering {len(vods)} VOD streams for user '{username}' (Category: {category_id}).")
         
         vod_streams_json = []
         for vod in vods:
             vod_streams_json.append({
-                "num": vod['id'], "name": vod['title'], "stream_type": "movie", 
+                "num": vod['id'], "name": f"[{vod['category']}] {vod['title']}", "stream_type": "movie", 
                 "stream_id": vod['vod_id'], # VOD 404 Fix
                 "stream_icon": vod['thumbnail_url'] or None, "rating": 0, "rating_5based": 0,
                 "added": str(int(time.time())), "category_id": category_map.get(vod['category'], "1"), 
@@ -194,10 +186,8 @@ def player_api():
 
     if action in ('get_series_categories', 'get_series'):
         current_app.logger.info(f"[XC-API] Delivering empty series response for Action '{action}'.")
-        conn.close()
         return jsonify([]) 
 
-    conn.close()
     current_app.logger.error(f"[XC-API] Unknown Action '{action}' from user '{username}'.")
     return jsonify({"error": "Unknown action"})
 
@@ -209,9 +199,8 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     if not check_xc_auth(username, password):
         return "Invalid credentials", 401
     
-    conn = get_db_connection()
-    channel = conn.execute('SELECT login_name FROM live_streams WHERE id = ?', (stream_id,)).fetchone()
-    conn.close()
+    db = get_db()
+    channel = db.execute('SELECT login_name FROM live_streams WHERE id = ?', (stream_id,)).fetchone()
     
     if not channel:
         current_app.logger.error(f"[Play-Live-XC] Stream with DB-ID {stream_id} not found in DB.")
@@ -248,9 +237,8 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
 @bp.route('/play_live_m3u/<int:stream_id>')
 def play_live_m3u(stream_id):
     """M3U endpoint, also respects the live stream mode."""
-    conn = get_db_connection()
-    channel = conn.execute('SELECT login_name FROM live_streams WHERE id = ?', (stream_id,)).fetchone()
-    conn.close()
+    db = get_db()
+    channel = db.execute('SELECT login_name FROM live_streams WHERE id = ?', (stream_id,)).fetchone()
     
     if not channel:
         current_app.logger.error(f"[Play-Live-M3U] Stream with DB-ID {stream_id} not found in DB.")
@@ -355,9 +343,8 @@ def generate_m3u():
         current_app.logger.warning("[M3U] M3U playlist request, but feature is disabled.")
         return "M3U playlist feature is disabled on the server.", 404
         
-    conn = get_db_connection()
-    streams = conn.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
-    conn.close()
+    db = get_db()
+    streams = db.execute('SELECT * FROM live_streams ORDER BY is_live DESC, login_name ASC').fetchall()
     
     epg_url = f"{HOST_URL}/epg.xml?password={password}"
     m3u_content = [f'#EXTM3U url-tvg="{epg_url}"']

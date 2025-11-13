@@ -63,6 +63,9 @@ def create_app():
     except Exception as e:
         app.logger.critical(f"FATAL: Failed to register blueprints: {e}")
     
+    from db import init_app
+    init_app(app)
+
     return app
 
 # This instance is used by Gunicorn
