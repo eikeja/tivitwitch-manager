@@ -94,7 +94,8 @@ def get_twitch_app_token(client_id, client_secret):
                 'client_id': client_id,
                 'client_secret': client_secret,
                 'grant_type': 'client_credentials'
-            }
+            },
+            timeout=30
         )
         response.raise_for_status()
         data = response.json()
@@ -120,7 +121,7 @@ def get_user_ids(token, client_id, login_names):
             headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
             params = [('login', name) for name in chunk]
             
-            response = requests.get(TWITCH_API_URL_USERS, headers=headers, params=params)
+            response = requests.get(TWITCH_API_URL_USERS, headers=headers, params=params, timeout=30)
             response.raise_for_status()
             data = response.json().get('data', [])
             
@@ -142,7 +143,7 @@ def get_channel_vods(token, client_id, user_id, vod_count):
             'first': vod_count
         }
         
-        response = requests.get(TWITCH_API_URL_VIDEOS, headers=headers, params=params)
+        response = requests.get(TWITCH_API_URL_VIDEOS, headers=headers, params=params, timeout=30)
         response.raise_for_status()
         return response.json().get('data', [])
     except Exception as e:
@@ -164,7 +165,7 @@ def get_live_streams_info(token, client_id, user_id_map):
             chunk = user_ids[i:i+100]
             params = [('user_id', user_id) for user_id in chunk]
             
-            response = requests.get(TWITCH_API_URL_STREAMS, headers=headers, params=params)
+            response = requests.get(TWITCH_API_URL_STREAMS, headers=headers, params=params, timeout=30)
             response.raise_for_status()
             data = response.json().get('data', [])
             
