@@ -26,15 +26,24 @@ def init_app(app):
     """
     app.teardown_appcontext(close_db)
 
-def get_password_hash():
-    """Fetches only the master password hash."""
+def get_user_by_username(username):
+    """Fetches a user by username."""
     try:
         db = get_db()
-        row = db.execute("SELECT value FROM settings WHERE key = 'password_hash'").fetchone()
-        return row['value'] if row else None
+        row = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        return row
     except Exception as e:
-        # Logger might not be available here if error happens early
-        print(f"[DB-Helper-ERROR] Error fetching password hash: {e}")
+        current_app.logger.error(f"[DB-Helper] Error fetching user '{username}': {e}")
+        return None
+
+def get_user_by_token(token):
+    """Fetches a user by their API token."""
+    try:
+        db = get_db()
+        row = db.execute("SELECT * FROM users WHERE api_token = ?", (token,)).fetchone()
+        return row
+    except Exception as e:
+        current_app.logger.error(f"[DB-Helper] Error fetching user by token: {e}")
         return None
 
 def get_setting(key, default=None):
@@ -61,17 +70,16 @@ def get_all_settings():
         return {}
 
 def check_xc_auth(username, password):
-    """Checks TiviMate credentials against the master password."""
-    if not password:
-        current_app.logger.warning("[Auth] Check_xc_auth failed: No password provided.")
+    """Checks credentials against the users table."""
+    if not username or not password:
         return False
         
-    pw_hash = get_password_hash()
-    if not pw_hash: 
-        current_app.logger.error("[Auth] Check_xc_auth failed: No master password set in DB.")
+    user = get_user_by_username(username)
+    if not user:
+        current_app.logger.warning(f"[Auth] Check_xc_auth failed: User '{username}' not found.")
         return False
-        
-    is_valid = check_password_hash(pw_hash, password)
+
+    is_valid = check_password_hash(user['password_hash'], password)
     if not is_valid:
         current_app.logger.warning(f"[Auth] Check_xc_auth failed: Invalid password for user '{username}'.")
         

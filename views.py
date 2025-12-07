@@ -17,8 +17,9 @@ def index():
 @bp.route('/api/channels', methods=['GET'])
 def get_channels():
     conn = get_db()
-    channels = conn.execute('SELECT * FROM channels ORDER BY login_name').fetchall()
-    current_app.logger.info("[WebAPI] GET /api/channels (Loading channels)")
+    # Filter channels by Key user
+    channels = conn.execute('SELECT * FROM channels WHERE user_id = ? ORDER BY login_name', (g.user['id'],)).fetchall()
+    current_app.logger.info(f"[WebAPI] GET /api/channels for user {g.user['username']}")
     return jsonify([dict(ix) for ix in channels])
 
 @bp.route('/api/channels', methods=['POST'])
@@ -29,24 +30,23 @@ def add_channel():
         return jsonify({'error': 'Channel name missing'}), 400
         
     login_name = new_channel.strip().lower()
-    current_app.logger.info(f"[WebAPI] POST /api/channels: Attempting to add channel '{login_name}'.")
+    current_app.logger.info(f"[WebAPI] POST /api/channels: User {g.user['username']} adding '{login_name}'.")
     conn = get_db()
     try:
-        conn.execute('INSERT INTO channels (login_name) VALUES (?)', (login_name,))
+        conn.execute('INSERT INTO channels (login_name, user_id) VALUES (?, ?)', (login_name, g.user['id']))
         conn.commit()
     except sqlite3.IntegrityError:
-        current_app.logger.warning(f"[WebAPI] POST /api/channels: Channel '{login_name}' already exists.")
+        current_app.logger.warning(f"[WebAPI] Channel '{login_name}' already exists for user {g.user['username']}.")
         return jsonify({'error': 'Channel already exists'}), 409
     
+    # Add to live_streams if not present (global list)
     try:
-        new_channel_row = conn.execute('SELECT id FROM channels WHERE login_name = ?', (login_name,)).fetchone()
-        if new_channel_row:
-            current_app.logger.info(f"[WebAPI] Adding channel '{login_name}' (ID: {new_channel_row['id']}) to live_streams table.")
-            conn.execute(
-                "INSERT OR IGNORE INTO live_streams (id, login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?, ?)",
-                (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
-            )
-            conn.commit()
+        current_app.logger.info(f"[WebAPI] Ensuring '{login_name}' is in live_streams table.")
+        conn.execute(
+            "INSERT OR IGNORE INTO live_streams (login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?)",
+            (login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
+        )
+        conn.commit()
     except Exception as e:
         current_app.logger.error(f"[WebAPI] Error adding to live_streams table: {e}")
     finally:
@@ -55,17 +55,13 @@ def add_channel():
 
 @bp.route('/api/channels/<int:channel_id>', methods=['DELETE'])
 def delete_channel(channel_id):
-    current_app.logger.info(f"[WebAPI] DELETE /api/channels/{channel_id}: Attempting to delete channel.")
+    current_app.logger.info(f"[WebAPI] DELETE /api/channels/{channel_id} for user {g.user['username']}.")
     conn = get_db()
-    channel = conn.execute('SELECT login_name FROM channels WHERE id = ?', (channel_id,)).fetchone()
-    if channel:
-        current_app.logger.info(f"[WebAPI] Deleting VODs for channel '{channel['login_name']}'.")
-        conn.execute('DELETE FROM vod_streams WHERE channel_login = ?', (channel['login_name'],))
     
-    conn.execute('DELETE FROM channels WHERE id = ?', (channel_id,))
-    conn.execute('DELETE FROM live_streams WHERE id = ?', (channel_id,))
-    
+    # We only delete the user's mapping. The poller will clean up live_streams if no one watches it anymore.
+    conn.execute('DELETE FROM channels WHERE id = ? AND user_id = ?', (channel_id, g.user['id']))
     conn.commit()
+    
     current_app.logger.info(f"[WebAPI] Channel {channel_id} deleted successfully.")
     return jsonify({'success': 'Channel deleted'}), 200
 

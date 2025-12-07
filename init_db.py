@@ -9,9 +9,21 @@ print(f"Initializing database at {DB_PATH}")
 
 # --- 1. Create tables ---
 cursor.execute('''
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    api_token TEXT UNIQUE
+)
+''')
+
+cursor.execute('''
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    login_name TEXT NOT NULL UNIQUE
+    user_id INTEGER NOT NULL,
+    login_name TEXT NOT NULL,
+    UNIQUE(login_name, user_id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
 )
 ''')
 
@@ -24,8 +36,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS live_streams (
-    id INTEGER PRIMARY KEY,
-    login_name TEXT NOT NULL UNIQUE,
+    login_name TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
     is_live BOOLEAN NOT NULL DEFAULT 0,
     category TEXT NOT NULL DEFAULT 'Twitch Live',
@@ -38,12 +49,13 @@ CREATE TABLE IF NOT EXISTS live_streams (
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS vod_streams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vod_id TEXT NOT NULL UNIQUE,
+    vod_id TEXT NOT NULL,
     channel_login TEXT NOT NULL,
     title TEXT NOT NULL,
     created_at TEXT NOT NULL,
     category TEXT NOT NULL,
-    thumbnail_url TEXT 
+    thumbnail_url TEXT,
+    UNIQUE(vod_id, channel_login)
 )
 ''')
 
@@ -56,6 +68,7 @@ def add_column(table, column, type):
     except sqlite3.OperationalError:
         pass # Column already exists
 
+# users table migration (if table exists but empty or old) - simplified for now as we assume fresh start or manual handling for big schema changes
 add_column('live_streams', 'epg_channel_id', 'TEXT')
 add_column('live_streams', 'stream_title', 'TEXT')
 add_column('live_streams', 'stream_game', 'TEXT')

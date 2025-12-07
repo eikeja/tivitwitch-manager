@@ -190,17 +190,19 @@ def update_database():
     cursor = conn.cursor()
 
     try:
-        channels = conn.execute('SELECT id, login_name FROM channels').fetchall()
-        login_names = [row['login_name'] for row in channels]
+    try:
+        # Get all unique channels monitored by users
+        channels_raw = conn.execute('SELECT DISTINCT login_name FROM channels').fetchall()
+        login_names = [row['login_name'] for row in channels_raw]
         
         token = None
         user_id_map = {}
-        if (settings['vod_enabled'] or len(channels) > 0) and settings['twitch_client_id'] and settings['twitch_client_secret']:
+        if (settings['vod_enabled'] or len(login_names) > 0) and settings['twitch_client_id'] and settings['twitch_client_secret']:
             token = get_twitch_app_token(settings['twitch_client_id'], settings['twitch_client_secret'])
             if token:
                 user_id_map = get_user_ids(token, settings['twitch_client_id'], login_names)
         
-        logging.info(f"[Poller-Live] Checking status for {len(login_names)} live channels...")
+        logging.info(f"[Poller-Live] Checking status for {len(login_names)} unique live channels...")
         live_stream_info_map = {}
         if token and user_id_map:
             user_id_to_login = {v: k for k, v in user_id_map.items()}
@@ -212,8 +214,8 @@ def update_database():
 
         live_count = len(live_stream_info_map)
         
-        for channel in channels:
-            login_name = channel['login_name']
+        # Update live_streams table
+        for login_name in login_names:
             epg_id = f"{login_name}.tv"
             stream_info = live_stream_info_map.get(login_name)
             
@@ -224,10 +226,17 @@ def update_database():
             
             cursor.execute(
                 """INSERT OR REPLACE INTO live_streams 
-                   (id, login_name, epg_channel_id, display_name, is_live, stream_title, stream_game) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (channel['id'], login_name, epg_id, display_name, is_live, stream_title, stream_game)
+                   (login_name, epg_channel_id, display_name, is_live, stream_title, stream_game) 
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (login_name, epg_id, display_name, is_live, stream_title, stream_game)
             )
+            
+        # Garbage Collection: Remove streams that are no longer in channels table
+        if login_names:
+            placeholders = ','.join(['?'] * len(login_names))
+            cursor.execute(f"DELETE FROM live_streams WHERE login_name NOT IN ({placeholders})", login_names)
+        else:
+            cursor.execute("DELETE FROM live_streams")
 
         logging.info(f"[Poller-Live] Live check complete. {live_count} channels are live.")
 

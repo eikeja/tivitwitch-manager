@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const host = window.location.host;
         const protocol = window.location.protocol;
         const baseUrl = `${protocol}//${host}`;
+        const apiToken = document.body.dataset.apiToken;
 
         const serverUrlElement = document.getElementById('server-url-display');
         if (serverUrlElement) {
@@ -42,12 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const m3uUrlElement = document.getElementById('m3u-url-display');
         if (m3uUrlElement) {
-            m3uUrlElement.value = `${baseUrl}/playlist.m3u?password=YOUR_PASSWORD_HERE`;
+            m3uUrlElement.value = apiToken ? `${baseUrl}/playlist.m3u?token=${apiToken}` : 'Error: No Token Found';
         }
 
         const m3uEpgUrlElement = document.getElementById('m3u-epg-url-display');
         if (m3uEpgUrlElement) {
-            m3uEpgUrlElement.value = `${baseUrl}/epg.xml?password=YOUR_PASSWORD_HERE`;
+            m3uEpgUrlElement.value = apiToken ? `${baseUrl}/epg.xml?token=${apiToken}` : 'Error: No Token Found';
         }
     }
 
