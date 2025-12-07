@@ -384,6 +384,19 @@ ul#channels li button:hover {
 }
 .form-footer a { color: var(--accent-purple); text-decoration: none; font-size: 14px; }
 .form-footer a:hover { text-decoration: underline; }
+
+.text-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent-purple);
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+}
+.text-btn:hover { text-decoration: underline; }
+
 #settings-status { font-size: 14px; margin-top: 10px; text-align: right; }
 
 

@@ -427,7 +427,16 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const isHidden = howtoBox.style.display === 'none';
             howtoBox.style.display = isHidden ? 'block' : 'none';
-            toggleHowtoBtn.textContent = isHidden ? 'Hide Instructions ▲' : 'How do I get these? ▼';
+            toggleHowtoBtn.textContent = isHidden ? 'Hide Instructions ▲' : 'How? ▼';
+        });
+    }
+
+    // Skip Button
+    const skipBtn = document.getElementById('skip-credentials-btn');
+    if (skipBtn && credentialsModal) {
+        skipBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            credentialsModal.style.display = 'none';
         });
     }
 
