@@ -169,38 +169,6 @@
                 <input type="text" id="channel-name" placeholder="Twitch channel name (e.g. 'gronkh')" required>
                 <button type="submit" class="btn-primary">Save Channel</button>
             </form>
-            <p id="error-message" class="error"></p>
-        </div>
-    </div>
-
-    <!-- Credentials Modal -->
-    <div id="credentials-modal" class="modal" data-backdrop="static">
-        <div class="modal-content">
-            <h2>Missing Twitch Credentials</h2>
-            <p>To use this app, you must provide your own <strong>Twitch Client ID</strong> and <strong>Secret</strong>.
-            </p>
-            <p class="small-text">These are stored securely in your user account and are used to query the Twitch API on
-                your behalf.</p>
-
-            <form id="credentials-form">
-                <div class="form-row">
-                    <label for="modal-client-id">Client ID</label>
-                    <input type="text" id="modal-client-id" placeholder="Your Client ID" required>
-                </div>
-                <div class="form-row">
-                    <label for="modal-client-secret">Client Secret</label>
-                    <input type="password" id="modal-client-secret" placeholder="Your Client Secret" required>
-                </div>
-                <div class="form-footer">
-                    <a href="#" id="modal-howto-link">How do I get these?</a>
-                    <button type="submit" class="btn-green">Save Credentials</button>
-                </div>
-            </form>
-            <p id="credentials-error" class="error"></p>
-        </div>
-    </div>
-
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 
 </html>

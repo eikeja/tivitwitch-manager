@@ -418,11 +418,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Modal 'How To' Link
-    if (modalHowtoLink && howtoModal) {
-        modalHowtoLink.addEventListener('click', (e) => {
+    // Modal 'How To' Toggle
+    const toggleHowtoBtn = document.getElementById('toggle-howto-btn');
+    const howtoBox = document.getElementById('credentials-howto-box');
+
+    if (toggleHowtoBtn && howtoBox) {
+        toggleHowtoBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            howtoModal.style.display = 'block';
+            const isHidden = howtoBox.style.display === 'none';
+            howtoBox.style.display = isHidden ? 'block' : 'none';
+            toggleHowtoBtn.textContent = isHidden ? 'Hide Instructions ▲' : 'How do I get these? ▼';
         });
     }
 
