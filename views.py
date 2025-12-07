@@ -67,9 +67,15 @@ def delete_channel(channel_id):
 
 @bp.route('/api/settings', methods=['GET'])
 def api_get_settings():
-    """Loads settings for the Web UI."""
+    """Loads settings for the Web UI. Merges global settings with user-specific keys."""
     settings = get_all_settings()
-    current_app.logger.info(f"[WebAPI] GET /api/settings: Loading settings.")
+    
+    # Inject User's Twitch Credentials
+    # (Client Secret is never sent back for security, just like global)
+    settings['twitch_client_id'] = g.user['client_id'] or ""
+    settings['twitch_client_secret'] = "" # Placeholder
+    
+    current_app.logger.info(f"[WebAPI] GET /api/settings: Loading settings for {g.user['username']}.")
     return jsonify(settings)
 
 @bp.route('/api/settings', methods=['POST'])
@@ -85,29 +91,36 @@ def api_save_settings():
         def save(key, value):
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
-        # Save all settings
+        # 1. Save Global Settings
         save('vod_enabled', str(data.get('vod_enabled', 'false')).lower())
-        save('twitch_client_id', data.get('twitch_client_id', ''))
         save('vod_count_per_channel', str(data.get('vod_count_per_channel', '5')))
         save('m3u_enabled', str(data.get('m3u_enabled', 'false')).lower())
         save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
         save('log_level', new_log_level_str)
         
-        if data.get('twitch_client_secret'):
-            current_app.logger.info(f"[WebAPI] A new Twitch secret is being saved.")
-            save('twitch_client_secret', data.get('twitch_client_secret'))
+        # 2. Save User-Specific Settings (Twitch Credentials)
+        user_client_id = data.get('twitch_client_id', '').strip()
+        user_client_secret = data.get('twitch_client_secret')
+        
+        if user_client_secret:
+            # Update ID and Secret (if secret is provided)
+            conn.execute("UPDATE users SET client_id = ?, client_secret = ? WHERE id = ?", 
+                         (user_client_id, user_client_secret, g.user['id']))
+            current_app.logger.info(f"[WebAPI] Updated credentials for user {g.user['username']}.")
+        else:
+            # Only update ID if secret is not changed
+            conn.execute("UPDATE users SET client_id = ? WHERE id = ?", 
+                         (user_client_id, g.user['id']))
             
         conn.commit()
         
         # *** BUG FIX & FEATURE: Dynamically adjust running app's log level ***
         if new_log_level_str == 'error':
             current_app.logger.setLevel(logging.ERROR)
-            # Use .logger.warning() to ensure this message always appears
             current_app.logger.warning("Log level set to ERROR at runtime.")
         else:
             current_app.logger.setLevel(logging.INFO)
             current_app.logger.info("Log level set to INFO at runtime.")
-        # Note: The poller will only pick up the new level on its next restart.
             
     except Exception as e:
         conn.rollback()

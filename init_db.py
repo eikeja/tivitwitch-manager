@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    api_token TEXT UNIQUE
+    api_token TEXT UNIQUE,
+    client_id TEXT,
+    client_secret TEXT
 )
 ''')
 
@@ -69,6 +71,8 @@ def add_column(table, column, type):
         pass # Column already exists
 
 # users table migration (if table exists but empty or old) - simplified for now as we assume fresh start or manual handling for big schema changes
+add_column('users', 'client_id', 'TEXT')
+add_column('users', 'client_secret', 'TEXT')
 add_column('live_streams', 'epg_channel_id', 'TEXT')
 add_column('live_streams', 'stream_title', 'TEXT')
 add_column('live_streams', 'stream_game', 'TEXT')
