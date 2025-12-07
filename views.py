@@ -14,6 +14,10 @@ def index():
     """Serves the main web interface (index.html)."""
     return render_template('index.html')
 
+@bp.route('/premium')
+def premium_page():
+    return render_template('premium.html')
+
 @bp.route('/admin')
 def admin_dashboard():
     if not g.user or not g.user['is_admin']:
