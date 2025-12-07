@@ -85,7 +85,7 @@
             <div class="price">€4.99 <span style="font-size: 0.4em;">/ month</span></div>
 
             <ul class="features">
-                <li>Unlimited Channels (Free limit: 3)</li>
+                <li>Unlimited Channels (Free limit: {{ settings.free_channel_limit }})</li>
                 <li>Priority Support</li>
                 <li>Support the developer</li>
             </ul>
@@ -99,7 +99,49 @@
 
             <p style="margin-top: 20px; font-size: 0.8em; color: #777;">Secure payment processed by PayPal.</p>
         </div>
+
+        <!-- Voucher Redemption -->
+        <div class="pricing-box" style="margin-top: 20px; padding: 20px;">
+            <h3>Have a Voucher?</h3>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:15px;">
+                <input type="text" id="voucher-code" placeholder="Enter Code" style="padding:8px;">
+                <button id="redeem-btn" class="btn-primary">Redeem</button>
+            </div>
+            <p id="redeem-msg" style="margin-top:10px; font-weight:bold;"></p>
+        </div>
     </div>
+
+    <script>
+        document.getElementById('redeem-btn').addEventListener('click', async () => {
+            const code = document.getElementById('voucher-code').value;
+            const msg = document.getElementById('redeem-msg');
+            if (!code) return;
+
+            msg.innerText = "Checking...";
+            msg.style.color = "white";
+
+            try {
+                const res = await fetch("{{ url_for('views.redeem_coupon') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    msg.style.color = "#00ff00";
+                    msg.innerText = "Success! Reloading...";
+                    setTimeout(() => window.location.href = "{{ url_for('views.index') }}", 1500);
+                } else {
+                    msg.style.color = "red";
+                    msg.innerText = data.error || "Error redeeming code.";
+                }
+            } catch (e) {
+                msg.style.color = "red";
+                msg.innerText = "Network Error";
+            }
+        });
+    </script>
 
     <!-- PayPal SDK -->
     {% if settings.paypal_client_id %}

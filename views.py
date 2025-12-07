@@ -27,9 +27,10 @@ def admin_dashboard():
     
     conn = get_db()
     users = conn.execute("SELECT * FROM users").fetchall()
+    vouchers = conn.execute("SELECT * FROM vouchers ORDER BY created_at DESC").fetchall()
     settings = get_all_settings()
     
-    return render_template('admin.html', users=users, settings=settings)
+    return render_template('admin.html', users=users, settings=settings, vouchers=vouchers)
 
 @bp.route('/admin/user/<int:user_id>', methods=['POST'])
 def admin_update_user(user_id):
@@ -71,6 +72,7 @@ def admin_save_settings():
         save('vod_count_per_channel', data.get('vod_count_per_channel', '5'))
         save('m3u_enabled', 'true' if data.get('m3u_enabled') else 'false')
         save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
+        save('free_channel_limit', data.get('free_channel_limit', '3'))
         
         new_level = data.get('log_level', 'info')
         save('log_level', new_level)
@@ -133,10 +135,12 @@ def add_channel():
     
     # Check Limit for Free Users (Admins bypass)
     if not g.user['is_admin'] and g.user['subscription_tier'] == 'free':
+        from db import get_setting
+        limit = int(get_setting('free_channel_limit', '3'))
         count = conn.execute("SELECT COUNT(*) FROM channels WHERE user_id = ?", (g.user['id'],)).fetchone()[0]
-        if count >= 3:
-             current_app.logger.warning(f"[WebAPI] User {g.user['username']} hit free limit.")
-             return jsonify({'error': 'Free plan limit reached (3 channels). Upgrade to Premium!'}), 403
+        if count >= limit:
+             current_app.logger.warning(f"[WebAPI] User {g.user['username']} hit free limit ({limit}).")
+             return jsonify({'error': f'Free plan limit reached ({limit} channels). Upgrade to Premium!'}), 403
 
     try:
         conn.execute('INSERT INTO channels (login_name, user_id) VALUES (?, ?)', (login_name, g.user['id']))
@@ -263,3 +267,65 @@ def paypal_webhook():
         current_app.logger.info(f"[PayPal] User {user_id} upgraded to Premium.")
         
     return "OK", 200
+
+# --- Voucher System Endpoints ---
+
+@bp.route('/admin/vouchers', methods=['GET', 'POST'])
+def admin_vouchers():
+    if not g.user or not g.user['is_admin']:
+        abort(403)
+        
+    conn = get_db()
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'create':
+            code = request.form.get('code')
+            limit = request.form.get('limit')
+            if code and limit:
+                try:
+                    conn.execute("INSERT INTO vouchers (code, usage_limit) VALUES (?, ?)", (code.strip(), limit))
+                    conn.commit()
+                    flash(f'Voucher {code} created.', 'success')
+                except sqlite3.IntegrityError:
+                    flash('Voucher code already exists.', 'error')
+        elif action == 'delete':
+            voucher_id = request.form.get('voucher_id')
+            conn.execute("DELETE FROM vouchers WHERE id = ?", (voucher_id,))
+            conn.commit()
+            flash('Voucher deleted.', 'success')
+            
+        return redirect(url_for('views.admin_dashboard')) # Or stay on same tab? JS handles tab.
+        
+    # Just render admin page, logic is handled there mostly. This endpoint might not be used for listing if everything is in admin_dashboard
+    return redirect(url_for('views.admin_dashboard'))
+
+
+@bp.route('/api/redeem_coupon', methods=['POST'])
+def redeem_coupon():
+    if not g.user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    code = request.json.get('code')
+    if not code:
+        return jsonify({'error': 'Code missing'}), 400
+        
+    conn = get_db()
+    voucher = conn.execute("SELECT * FROM vouchers WHERE code = ?", (code.strip(),)).fetchone()
+    
+    if not voucher:
+        return jsonify({'error': 'Invalid code'}), 404
+        
+    if voucher['times_used'] >= voucher['usage_limit']:
+        return jsonify({'error': 'Code usage limit reached'}), 400
+        
+    # Apply Premium
+    try:
+        conn.execute("UPDATE users SET subscription_tier = 'premium' WHERE id = ?", (g.user['id'],))
+        conn.execute("UPDATE vouchers SET times_used = times_used + 1 WHERE id = ?", (voucher['id'],))
+        conn.commit()
+        current_app.logger.info(f"[Voucher] User {g.user['username']} redeemed {code}.")
+        return jsonify({'success': 'Premium activated!'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500

@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS vod_streams (
 )
 ''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS vouchers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    usage_limit INTEGER NOT NULL,
+    times_used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)
+''')
+
 # --- 2. Migration block ---
 print("Running database migrations (if needed)...")
 def add_column(table, column, type):
@@ -118,10 +128,15 @@ default_settings = {
     'smtp_user': '',
     'smtp_password': '',
     'smtp_from': 'noreply@example.com',
+
+    # Email Settings
     'email_subject_register': 'Welcome to TiviTwitch!',
     'email_body_register': 'Welcome! Please login to start adding streams.',
     'email_subject_reset': 'Password Reset Request',
-    'email_body_reset': 'Click this link to reset your password: {link}'
+    'email_body_reset': 'Click this link to reset your password: {link}',
+    
+    # User Limits
+    'free_channel_limit': '3'
 }
 
 # users table migration
@@ -137,7 +152,7 @@ add_column('users', 'reset_token', 'TEXT')
 add_column('users', 'reset_token_expiry', 'TEXT')
 
 add_column('live_streams', 'epg_channel_id', 'TEXT')
-
+   
 for key, value in default_settings.items():
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
 

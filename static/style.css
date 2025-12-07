@@ -465,6 +465,7 @@ ul#channels li button:hover {
     justify-content: space-between;
     align-items: center;
     margin-top: 20px;
+    gap: 15px;
 }
 
 .form-footer a {

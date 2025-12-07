@@ -193,7 +193,7 @@ def player_api():
         for stream in streams:
             display_name = stream['display_name']
             if stream['is_live'] and stream['stream_title']:
-                display_name = f"{stream['login_name']} – [{stream['stream_title']}]"
+                display_name = f"{stream['login_name']} - {stream['stream_title']}"
                 
             live_streams_json.append({
                 "num": stream['channel_id'], "name": display_name, "stream_type": "live", "stream_id": stream['channel_id'], 
@@ -443,7 +443,7 @@ def generate_m3u():
     for stream in streams:
         channel_name = stream['display_name']
         if stream['is_live'] and stream['stream_title']:
-            channel_name = f"{stream['login_name']} – [{stream['stream_title']}]"
+            channel_name = f"{stream['login_name']} - {stream['stream_title']}"
             
         tvg_id = stream['epg_channel_id'] 
         stream_url = f"{HOST_URL}/play_live_m3u/{stream['channel_id']}"
