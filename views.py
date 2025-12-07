@@ -8,6 +8,23 @@ from db import get_db, get_all_settings
 bp = Blueprint('views', __name__, url_prefix='')
 
 @bp.route('/')
+def index():
+    """Serves the main web interface (index.html)."""
+    return render_template('index.html')
+
+# --- API Endpoints for the Web Interface ---
+
+@bp.route('/api/channels', methods=['GET'])
+def get_channels():
+    conn = get_db()
+    channels = conn.execute('SELECT * FROM channels ORDER BY login_name').fetchall()
+    current_app.logger.info("[WebAPI] GET /api/channels (Loading channels)")
+    return jsonify([dict(ix) for ix in channels])
+
+@bp.route('/api/channels', methods=['POST'])
+def add_channel():
+    new_channel = request.json.get('name')
+    if not new_channel: 
         current_app.logger.warning("[WebAPI] POST /api/channels: Channel name missing.")
         return jsonify({'error': 'Channel name missing'}), 400
         
