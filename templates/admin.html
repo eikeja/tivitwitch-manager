@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - TiviTwitch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-section {
+            margin-top: 30px;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .badge-premium {
+            background: #ffd700;
+            color: #000;
+        }
+
+        .badge-admin {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .badge-free {
+            background: #ddd;
+            color: #333;
+        }
+
+        .actions form {
+            display: inline;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Admin Dashboard</h1>
+            <a href="{{ url_for('views.index') }}">Back to Main</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <p class="flash-{{ category }}">{{ message }}</p>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="admin-section">
+            <h2>User Management</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Tier</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td>{{ u.username }}</td>
+                        <td>{{ u.email or '-' }}</td>
+                        <td><span class="badge badge-{{ u.subscription_tier }}">{{ u.subscription_tier|title }}</span>
+                        </td>
+                        <td>{% if u.is_admin %}<span class="badge badge-admin">Admin</span>{% else %}User{% endif %}
+                        </td>
+                        <td class="actions">
+                            {% if u.id != g.user['id'] %}
+                            <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}">
+                                <input type="hidden" name="action"
+                                    value="{% if u.is_admin %}revoke_admin{% else %}make_admin{% endif %}">
+                                <button type="submit" class="text-btn">{% if u.is_admin %}Revoke Admin{% else %}Make
+                                    Admin{% endif %}</button>
+                            </form>
+                            |
+                            <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}">
+                                <input type="hidden" name="action"
+                                    value="{% if u.subscription_tier == 'free' %}set_premium{% else %}set_free{% endif %}">
+                                <button type="submit" class="text-btn">{% if u.subscription_tier == 'free' %}Grant
+                                    Premium{% else %}Revoke Premium{% endif %}</button>
+                            </form>
+                            |
+                            <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}"
+                                onsubmit="return confirm('Are you sure?');">
+                                <input type="hidden" name="action" value="delete">
+                                <button type="submit" class="text-btn" style="color:red;">Delete</button>
+                            </form>
+                            {% else %}
+                            <span style="color:#aaa;">(You)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="admin-section">
+            <h2>Global Settings & Email Configuration</h2>
+            <form method="POST" action="{{ url_for('views.admin_save_settings') }}">
+                <div class="form-row">
+                    <label>Log Level</label>
+                    <select name="log_level">
+                        <option value="info" {% if settings.log_level=='info' %}selected{% endif %}>Info</option>
+                        <option value="error" {% if settings.log_level=='error' %}selected{% endif %}>Error</option>
+                    </select>
+                </div>
+
+                <h3 style="margin-top: 20px;">SMTP Settings</h3>
+                <div class="form-row"><label>Host</label><input type="text" name="smtp_host"
+                        value="{{ settings.smtp_host }}"></div>
+                <div class="form-row"><label>Port</label><input type="number" name="smtp_port"
+                        value="{{ settings.smtp_port }}"></div>
+                <div class="form-row"><label>User</label><input type="text" name="smtp_user"
+                        value="{{ settings.smtp_user }}"></div>
+                <div class="form-row"><label>Password</label><input type="password" name="smtp_password"
+                        placeholder="(Leave empty to keep unchanged)"></div>
+                <div class="form-row"><label>From Address</label><input type="text" name="smtp_from"
+                        value="{{ settings.smtp_from }}"></div>
+
+                <h3 style="margin-top: 20px;">Email Templates</h3>
+                <div class="form-row"><label>Register Subject</label><input type="text" name="email_subject_register"
+                        value="{{ settings.email_subject_register }}"></div>
+                <div class="form-row"><label>Register Body</label><textarea name="email_body_register"
+                        rows="3">{{ settings.email_body_register }}</textarea></div>
+
+                <div class="form-row"><label>Reset Password Subject</label><input type="text" name="email_subject_reset"
+                        value="{{ settings.email_subject_reset }}"></div>
+                <div class="form-row"><label>Reset Password Body (use {link})</label><textarea name="email_body_reset"
+                        rows="3">{{ settings.email_body_reset }}</textarea></div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Global Settings</button>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>

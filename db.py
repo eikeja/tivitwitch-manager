@@ -2,7 +2,15 @@ import sqlite3
 from werkzeug.security import check_password_hash
 from flask import current_app, g
 
-DB_PATH = '/data/channels.db'
+import os
+
+# Ensure instance folder exists
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTANCE_FOLDER = os.path.join(BASE_DIR, 'instance')
+if not os.path.exists(INSTANCE_FOLDER):
+    os.makedirs(INSTANCE_FOLDER)
+
+DB_PATH = os.path.join(INSTANCE_FOLDER, 'channels.db')
 
 def get_db():
     """Opens a new database connection if there is none yet for the

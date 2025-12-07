@@ -1,7 +1,12 @@
 import sqlite3
 import os
 
-DB_PATH = '/data/channels.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTANCE_FOLDER = os.path.join(BASE_DIR, 'instance')
+if not os.path.exists(INSTANCE_FOLDER):
+    os.makedirs(INSTANCE_FOLDER)
+
+DB_PATH = os.path.join(INSTANCE_FOLDER, 'channels.db')
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
@@ -70,14 +75,29 @@ def add_column(table, column, type):
     except sqlite3.OperationalError:
         pass # Column already exists
 
-# users table migration (if table exists but empty or old) - simplified for now as we assume fresh start or manual handling for big schema changes
+# users table migration
 add_column('users', 'client_id', 'TEXT')
 add_column('users', 'client_secret', 'TEXT')
+# New fields for Admin/Premium/Email
+add_column('users', 'is_admin', 'INTEGER DEFAULT 0')
+add_column('users', 'subscription_tier', "TEXT DEFAULT 'free'")
+add_column('users', 'paypal_sub_id', 'TEXT')
+add_column('users', 'subscription_end', 'TEXT')
+add_column('users', 'email', 'TEXT')
+
+# Create index for email (since ADD COLUMN cannot have UNIQUE constraint in SQLite)
+try:
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email)")
+    print("  > Created unique index for email.")
+except Exception as e:
+    print(f"  > Warning: Could not create email index: {e}")
+add_column('users', 'reset_token', 'TEXT')
+add_column('users', 'reset_token_expiry', 'TEXT')
+
 add_column('live_streams', 'epg_channel_id', 'TEXT')
 add_column('live_streams', 'stream_title', 'TEXT')
 add_column('live_streams', 'stream_game', 'TEXT')
 add_column('vod_streams', 'thumbnail_url', 'TEXT')
-
 
 # --- 3. Add default settings ---
 default_settings = {
@@ -87,8 +107,32 @@ default_settings = {
     'vod_count_per_channel': '5',
     'm3u_enabled': 'false',
     'live_stream_mode': 'proxy',
-    'log_level': 'info' # <-- DEIN NEUES FEATURE
+    'log_level': 'info',
+    # SMTP Defaults
+    'smtp_host': 'smtp.example.com',
+    'smtp_port': '587',
+    'smtp_user': '',
+    'smtp_password': '',
+    'smtp_from': 'noreply@example.com',
+    'email_subject_register': 'Welcome to TiviTwitch!',
+    'email_body_register': 'Welcome! Please login to start adding streams.',
+    'email_subject_reset': 'Password Reset Request',
+    'email_body_reset': 'Click this link to reset your password: {link}'
 }
+
+# users table migration
+add_column('users', 'client_id', 'TEXT')
+add_column('users', 'client_secret', 'TEXT')
+# New fields for Admin/Premium/Email
+add_column('users', 'is_admin', 'INTEGER DEFAULT 0')
+add_column('users', 'subscription_tier', "TEXT DEFAULT 'free'")
+add_column('users', 'paypal_sub_id', 'TEXT')
+add_column('users', 'subscription_end', 'TEXT')
+add_column('users', 'email', 'TEXT UNIQUE')
+add_column('users', 'reset_token', 'TEXT')
+add_column('users', 'reset_token_expiry', 'TEXT')
+
+add_column('live_streams', 'epg_channel_id', 'TEXT')
 
 for key, value in default_settings.items():
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))

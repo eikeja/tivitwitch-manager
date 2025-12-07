@@ -22,112 +22,122 @@
                     </svg>
                 </a>
             </div>
+        </div>
+        <div class="user-controls">
+            <span class="badge badge-{{ g.user['subscription_tier'] }}">{{ g.user['subscription_tier']|title }}</span>
+            {% if g.user['is_admin'] %}
+            <a href="{{ url_for('views.admin_dashboard') }}" class="admin-btn">Admin Dashboard</a>
+            {% endif %}
+            {% if g.user['subscription_tier'] == 'free' %}
+            <a href="{{ url_for('views.premium_page') }}" class="premium-btn">Upgrade</a>
+            {% endif %}
             <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logout ({{ g.user['username'] }})</a>
         </div>
+    </div>
 
-        <div class="setup-info connection-details-box">
-            <h3>TiviMate Xtream Codes Setup</h3>
-            <p>Use these details to add a new playlist in TiviMate:</p>
-            <ul>
-                <li>
-                    <strong>Server Address:</strong>
-                    <div class="copy-wrapper">
-                        <input type="text" id="server-url-display" value="Loading..." readonly>
-                        <button class="copy-btn" data-copy-target="#server-url-display">Copy</button>
-                    </div>
-                </li>
-                <li><strong>Username:</strong> <code>{{ g.user['username'] }}</code></li>
-                <li><strong>Password:</strong> <code>(your password)</code></li>
-            </ul>
-
-            <div class="m3u-info" id="m3u-setup-info" style="display: none;">
-                <hr class="section-divider">
-                <h3>M3U Playlist Setup (VLC, etc.)</h3>
-                <p>Use these URLs for simple players. <strong>Live streams only.</strong><br>
-                    This URL contains your private access token. Do not share it.</p>
-
-                <label for="m3u-url-display">Playlist (M3U) URL:</label>
+    <div class="setup-info connection-details-box">
+        <h3>TiviMate Xtream Codes Setup</h3>
+        <p>Use these details to add a new playlist in TiviMate:</p>
+        <ul>
+            <li>
+                <strong>Server Address:</strong>
                 <div class="copy-wrapper">
-                    <input type="text" id="m3u-url-display" value="Loading..." readonly>
-                    <button class="copy-btn" data-copy-target="#m3u-url-display">Copy</button>
+                    <input type="text" id="server-url-display" value="Loading..." readonly>
+                    <button class="copy-btn" data-copy-target="#server-url-display">Copy</button>
                 </div>
+            </li>
+            <li><strong>Username:</strong> <code>{{ g.user['username'] }}</code></li>
+            <li><strong>Password:</strong> <code>(your password)</code></li>
+        </ul>
 
-                <label for="m3u-epg-url-display">EPG (XML) URL:</label>
-                <div class="copy-wrapper">
-                    <input type="text" id="m3u-epg-url-display" value="Loading..." readonly>
-                    <button class="copy-btn" data-copy-target="#m3u-epg-url-display">Copy</button>
-                </div>
+        <div class="m3u-info" id="m3u-setup-info" style="display: none;">
+            <hr class="section-divider">
+            <h3>M3U Playlist Setup (VLC, etc.)</h3>
+            <p>Use these URLs for simple players. <strong>Live streams only.</strong><br>
+                This URL contains your private access token. Do not share it.</p>
+
+            <label for="m3u-url-display">Playlist (M3U) URL:</label>
+            <div class="copy-wrapper">
+                <input type="text" id="m3u-url-display" value="Loading..." readonly>
+                <button class="copy-btn" data-copy-target="#m3u-url-display">Copy</button>
+            </div>
+
+            <label for="m3u-epg-url-display">EPG (XML) URL:</label>
+            <div class="copy-wrapper">
+                <input type="text" id="m3u-epg-url-display" value="Loading..." readonly>
+                <button class="copy-btn" data-copy-target="#m3u-epg-url-display">Copy</button>
             </div>
         </div>
+    </div>
 
-        <div class="channel-list">
-            <div class="section-header">
-                <h3>Managed Channels</h3>
-                <button id="open-add-modal-btn" class="btn-primary">Add New Channel</button>
-            </div>
-            <ul id="channels">
-                <li>Loading...</li>
-            </ul>
+    <div class="channel-list">
+        <div class="section-header">
+            <h3>Managed Channels</h3>
+            <button id="open-add-modal-btn" class="btn-primary">Add New Channel</button>
         </div>
+        <ul id="channels">
+            <li>Loading...</li>
+        </ul>
+    </div>
 
-        <div class="settings-container">
-            <h3>Settings</h3>
-            <div id="settings-form">
+    <div class="settings-container">
+        <h3>Settings</h3>
+        <div id="settings-form">
 
-                <div class="form-row">
-                    <label for="setting-log-level">Log Level</label>
-                    <select id="setting-log-level">
-                        <option value="info">All Logs (Info, Error)</option>
-                        <option value="error">Errors Only</option>
-                    </select>
-                </div>
-
-                <div class="form-row">
-                    <label for="setting-live-mode">Live Stream Mode</label>
-                    <select id="setting-live-mode">
-                        <option value="proxy">Proxy (Filters Ads, Slow Start)</option>
-                        <option value="direct">Direct (Shows Ads, Fast Start)</option>
-                    </select>
-                </div>
-
-                <div class="form-row">
-                    <label>Enable M3U Playlist (for VLC)</label>
-                    <label class="switch">
-                        <input type="checkbox" id="setting-m3u-enabled">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="form-row">
-                    <label>Enable Twitch VODs (for XC)</label>
-                    <label class="switch">
-                        <input type="checkbox" id="setting-vod-enabled">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <div class="form-row">
-                    <label for="setting-client-id">Twitch Client ID (User only)</label>
-                    <input type="text" id="setting-client-id" placeholder="Enter YOUR Twitch Client ID">
-                </div>
-
-                <div class="form-row">
-                    <label for="setting-client-secret">Twitch Client Secret</label>
-                    <input type="password" id="setting-client-secret" placeholder="Enter new secret (is not shown)">
-                </div>
-
-                <div class="form-row">
-                    <label for="setting-vod-count">VODs per Channel</label>
-                    <input type="number" id="setting-vod-count" min="1" max="50" value="5">
-                </div>
-
-                <div class="form-footer">
-                    <a href="#" id="open-modal-btn">How do I get Twitch Credentials?</a>
-                    <button id="save-settings-btn" class="btn-green">Save Settings</button>
-                </div>
-                <p id="settings-status"></p>
+            <div class="form-row">
+                <label for="setting-log-level">Log Level</label>
+                <select id="setting-log-level">
+                    <option value="info">All Logs (Info, Error)</option>
+                    <option value="error">Errors Only</option>
+                </select>
             </div>
+
+            <div class="form-row">
+                <label for="setting-live-mode">Live Stream Mode</label>
+                <select id="setting-live-mode">
+                    <option value="proxy">Proxy (Filters Ads, Slow Start)</option>
+                    <option value="direct">Direct (Shows Ads, Fast Start)</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label>Enable M3U Playlist (for VLC)</label>
+                <label class="switch">
+                    <input type="checkbox" id="setting-m3u-enabled">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="form-row">
+                <label>Enable Twitch VODs (for XC)</label>
+                <label class="switch">
+                    <input type="checkbox" id="setting-vod-enabled">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="form-row">
+                <label for="setting-client-id">Twitch Client ID (User only)</label>
+                <input type="text" id="setting-client-id" placeholder="Enter YOUR Twitch Client ID">
+            </div>
+
+            <div class="form-row">
+                <label for="setting-client-secret">Twitch Client Secret</label>
+                <input type="password" id="setting-client-secret" placeholder="Enter new secret (is not shown)">
+            </div>
+
+            <div class="form-row">
+                <label for="setting-vod-count">VODs per Channel</label>
+                <input type="number" id="setting-vod-count" min="1" max="50" value="5">
+            </div>
+
+            <div class="form-footer">
+                <a href="#" id="open-modal-btn">How do I get Twitch Credentials?</a>
+                <button id="save-settings-btn" class="btn-green">Save Settings</button>
+            </div>
+            <p id="settings-status"></p>
         </div>
+    </div>
 
     </div>
 

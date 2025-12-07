@@ -2,7 +2,8 @@
 import sqlite3
 import os
 
-DB_PATH = '/data/channels.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'instance', 'channels.db')
 print(f"Connecting to database: {DB_PATH}")
 try:
     conn = sqlite3.connect(DB_PATH)
