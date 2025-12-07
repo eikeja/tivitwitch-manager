@@ -169,6 +169,54 @@
                 <input type="text" id="channel-name" placeholder="Twitch channel name (e.g. 'gronkh')" required>
                 <button type="submit" class="btn-primary">Save Channel</button>
             </form>
+            <p id="error-message" class="error"></p>
+        </div>
+    </div>
+
+    <!-- Credentials Modal -->
+    <div id="credentials-modal" class="modal" data-backdrop="static">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2>Missing Twitch Credentials</h2>
+            <p>To use this app, you must provide your own <strong>Twitch Client ID</strong> and <strong>Secret</strong>.
+            </p>
+            <p class="small-text">These are stored securely in your user account and are used to query the Twitch API on
+                your behalf.</p>
+
+            <form id="credentials-form">
+                <div class="form-row">
+                    <label for="modal-client-id">Client ID</label>
+                    <input type="text" id="modal-client-id" placeholder="Your Client ID" required>
+                </div>
+                <div class="form-row">
+                    <label for="modal-client-secret">Client Secret</label>
+                    <input type="password" id="modal-client-secret" placeholder="Your Client Secret" required>
+                </div>
+
+                <div class="form-footer">
+                    <button type="button" id="toggle-howto-btn" class="text-btn">How do I get these? ▼</button>
+                    <button type="submit" class="btn-green">Save Credentials</button>
+                </div>
+
+                <div id="credentials-howto-box"
+                    style="display: none; margin-top: 15px; text-align: left; background: #f9f9f9; padding: 15px; border-radius: 5px; font-size: 0.9em; border: 1px solid #ddd;">
+                    <strong>Instructions:</strong>
+                    <ol style="padding-left: 20px; list-style-type: decimal;">
+                        <li>Go to <a href="https://dev.twitch.tv/console" target="_blank">Twitch Dev Console</a> & Log
+                            in.</li>
+                        <li>Click <strong>"Register Your Application"</strong>.</li>
+                        <li><strong>Name:</strong> Any name (e.g. "MyTiviTwitch").</li>
+                        <li><strong>OAuth Redirect URL:</strong> Enter <code>http://localhost</code>.</li>
+                        <li><strong>Category:</strong> "Application Integration" or "Chat Bot".</li>
+                        <li>Click <strong>Create</strong>, then <strong>Manage</strong>.</li>
+                        <li>Copy <strong>Client ID</strong> and generate/copy <strong>Client Secret</strong>.</li>
+                    </ol>
+                </div>
+            </form>
+            <p id="credentials-error" class="error"></p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 
 </html>
