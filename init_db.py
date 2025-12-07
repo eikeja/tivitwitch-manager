@@ -108,6 +108,10 @@ default_settings = {
     'm3u_enabled': 'false',
     'live_stream_mode': 'proxy',
     'log_level': 'info',
+    # PayPal Defaults
+    'paypal_client_id': '',
+    'paypal_client_secret': '',
+    'paypal_plan_id': '',
     # SMTP Defaults
     'smtp_host': 'smtp.example.com',
     'smtp_port': '587',

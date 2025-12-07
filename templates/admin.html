@@ -134,6 +134,14 @@
                     </select>
                 </div>
 
+                <h3 style="margin-top: 20px;">PayPal Configuration</h3>
+                <div class="form-row"><label>Client ID</label><input type="text" name="paypal_client_id"
+                        value="{{ settings.paypal_client_id }}"></div>
+                <div class="form-row"><label>Client Secret</label><input type="password" name="paypal_client_secret"
+                        value="{{ settings.paypal_client_secret }}"></div>
+                <div class="form-row"><label>Plan ID</label><input type="text" name="paypal_plan_id"
+                        value="{{ settings.paypal_plan_id }}"></div>
+
                 <h3 style="margin-top: 20px;">SMTP Settings</h3>
                 <div class="form-row"><label>Host</label><input type="text" name="smtp_host"
                         value="{{ settings.smtp_host }}"></div>

@@ -73,6 +73,11 @@ def admin_save_settings():
         new_level = data.get('log_level', 'info')
         save('log_level', new_level)
         
+        # PayPal
+        save('paypal_client_id', data.get('paypal_client_id', ''))
+        save('paypal_client_secret', data.get('paypal_client_secret', ''))
+        save('paypal_plan_id', data.get('paypal_plan_id', ''))
+        
         # SMTP
         save('smtp_host', data.get('smtp_host', ''))
         save('smtp_port', data.get('smtp_port', '587'))
@@ -124,8 +129,8 @@ def add_channel():
     current_app.logger.info(f"[WebAPI] POST /api/channels: User {g.user['username']} adding '{login_name}'.")
     conn = get_db()
     
-    # Check Limit for Free Users
-    if g.user['subscription_tier'] == 'free':
+    # Check Limit for Free Users (Admins bypass)
+    if not g.user['is_admin'] and g.user['subscription_tier'] == 'free':
         count = conn.execute("SELECT COUNT(*) FROM channels WHERE user_id = ?", (g.user['id'],)).fetchone()[0]
         if count >= 3:
              current_app.logger.warning(f"[WebAPI] User {g.user['username']} hit free limit.")
