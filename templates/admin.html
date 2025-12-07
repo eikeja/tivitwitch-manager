@@ -93,6 +93,7 @@
                         <td>{% if u.is_admin %}<span class="badge badge-admin">Admin</span>{% else %}User{% endif %}
                         </td>
                         <td class="actions">
+
                             {% if u.id != g.user['id'] %}
                             <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}">
                                 <input type="hidden" name="action"
@@ -101,20 +102,26 @@
                                     Admin{% endif %}</button>
                             </form>
                             |
+                            {% endif %}
+
                             <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}">
                                 <input type="hidden" name="action"
                                     value="{% if u.subscription_tier == 'free' %}set_premium{% else %}set_free{% endif %}">
                                 <button type="submit" class="text-btn">{% if u.subscription_tier == 'free' %}Grant
                                     Premium{% else %}Revoke Premium{% endif %}</button>
                             </form>
+
+                            {% if u.id != g.user['id'] %}
                             |
                             <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}"
                                 onsubmit="return confirm('Are you sure?');">
                                 <input type="hidden" name="action" value="delete">
                                 <button type="submit" class="text-btn" style="color:red;">Delete</button>
                             </form>
-                            {% else %}
-                            <span style="color:#aaa;">(You)</span>
+                            {% endif %}
+
+                            {% if u.id == g.user['id'] %}
+                            <span style="color:#aaa; margin-left:10px;">(You)</span>
                             {% endif %}
                         </td>
                     </tr>

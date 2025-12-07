@@ -16,7 +16,9 @@ def index():
 
 @bp.route('/premium')
 def premium_page():
-    return render_template('premium.html')
+    conn = get_db()
+    settings = get_all_settings()
+    return render_template('premium.html', settings=settings)
 
 @bp.route('/admin')
 def admin_dashboard():
