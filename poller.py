@@ -190,7 +190,6 @@ def update_database():
     cursor = conn.cursor()
 
     try:
-    try:
         # Get all unique channels monitored by users
         channels_raw = conn.execute('SELECT DISTINCT login_name FROM channels').fetchall()
         login_names = [row['login_name'] for row in channels_raw]

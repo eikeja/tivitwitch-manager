@@ -1,5 +1,4 @@
-from flask import (
-    Blueprint, render_template, request, jsonify, current_app
+    Blueprint, render_template, request, jsonify, current_app, g
 )
 import sqlite3
 import logging
