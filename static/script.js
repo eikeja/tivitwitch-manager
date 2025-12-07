@@ -73,13 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 channels.forEach(channel => {
                     const li = document.createElement('li');
-                    let displayText = channel.login_name;
-                    if (channel.is_live && channel.stream_title) {
-                        displayText = `${channel.login_name} – [${channel.stream_title}]`;
-                    }
-
                     li.innerHTML = `
-                        <span>${displayText}</span>
+                        <span>${channel.login_name}</span>
                         <button data-id="${channel.id}" class="delete-btn">Delete</button>
                     `;
                     channelList.appendChild(li);
