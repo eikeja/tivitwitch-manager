@@ -9,7 +9,7 @@ services:
     environment:
       - HOST_URL=${HOST_URL}
     volumes:
-      - tivitwitch_data:/data
+      - tivitwitch_data:/app/instance
     dns:
       - 8.8.8.8
       - 1.1.1.1

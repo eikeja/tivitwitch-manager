@@ -13,7 +13,10 @@ def get_startup_log_level():
     """Reads the log level from the DB *before* the app is running."""
     level_str = 'info' # Default
     try:
-        conn = sqlite3.connect('/data/channels.db')
+        # Use generated instance path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(base_dir, 'instance', 'channels.db')
+        conn = sqlite3.connect(db_path)
         row = conn.execute("SELECT value FROM settings WHERE key = 'log_level'").fetchone()
         conn.close()
         if row and row[0] == 'error':

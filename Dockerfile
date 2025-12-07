@@ -23,7 +23,7 @@ COPY . .
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # --- Volumes & Ports ---
-VOLUME /data
+VOLUME /app/instance
 # Nginx listens on this port inside the container
 EXPOSE 8000
 

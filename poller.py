@@ -12,7 +12,8 @@ import logging
 import sys
 
 # --- Configuration ---
-DB_PATH = '/data/channels.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'instance', 'channels.db')
 POLL_INTERVAL = 60 # seconds
 
 # --- Helper function (boot time only) ---
