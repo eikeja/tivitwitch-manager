@@ -17,7 +17,13 @@ def index():
 @bp.route('/api/channels', methods=['GET'])
 def get_channels():
     conn = get_db()
-    channels = conn.execute('SELECT * FROM channels ORDER BY login_name').fetchall()
+    # Join with live_streams to get status and title
+    channels = conn.execute('''
+        SELECT c.*, ls.is_live, ls.stream_title 
+        FROM channels c
+        LEFT JOIN live_streams ls ON c.login_name = ls.login_name
+        ORDER BY c.login_name
+    ''').fetchall()
     current_app.logger.info("[WebAPI] GET /api/channels (Loading channels)")
     return jsonify([dict(ix) for ix in channels])
 
