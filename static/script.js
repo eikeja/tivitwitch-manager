@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const serverUrlElement = document.getElementById('server-url-display');
         if (serverUrlElement) {
-            serverUrlElement.value = baseUrl;
+            serverUrlElement.value = `${baseUrl}/player_api.php`;
         }
 
         const m3uUrlElement = document.getElementById('m3u-url-display');
