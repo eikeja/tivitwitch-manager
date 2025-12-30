@@ -637,6 +637,7 @@ input:checked+.slider:before {
     display: flex;
     gap: 10px;
     align-items: center;
+    margin-bottom: 30px;
 }
 
 .admin-btn {
