@@ -249,10 +249,10 @@ def player_api():
         for vod in vods:
             vod_streams_json.append({
                 "num": vod['id'], "name": f"[{vod['category']}] {vod['title']}", "stream_type": "movie", 
-                "stream_id": vod['vod_id'], # VOD 404 Fix
+                "stream_id": vod['id'], # Use internal ID to avoid 32-bit overflow in TiviMate
                 "stream_icon": vod['thumbnail_url'] or None, "rating": 0, "rating_5based": 0,
                 "added": str(int(time.time())), "category_id": category_map.get(vod['category'], "1"), 
-                "container_extension": "m3u8", "custom_sid": "",
+                "container_extension": "mp4", "custom_sid": "",
             })
         return jsonify(vod_streams_json)
 
@@ -283,7 +283,7 @@ def player_api():
                 "backdrop_path": [],
             }
             movie_data = {
-                "stream_id": row['vod_id'],
+                "stream_id": row['id'],
                 "name": row['title'],
                 "container_extension": "mp4",
                 "custom_sid": "",
