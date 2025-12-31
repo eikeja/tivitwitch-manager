@@ -243,10 +243,23 @@ def player_api():
         query += ' ORDER BY v.created_at DESC'
         
         vods = db.execute(query, params).fetchall()
-        current_app.logger.info(f"[XC-API] Delivering {len(vods)} VOD streams for user '{username}' (Category: {category_id}).")
+        
+        # Enforce VOD limit per channel
+        vod_limit = int(get_setting('vod_count_per_channel', '5'))
+        vod_counts = {}
+        filtered_vods = []
+        
+        for vod in vods:
+            channel = vod['channel_login']
+            count = vod_counts.get(channel, 0)
+            if count < vod_limit:
+                filtered_vods.append(vod)
+                vod_counts[channel] = count + 1
+        
+        current_app.logger.info(f"[XC-API] Delivering {len(filtered_vods)} VOD streams for user '{username}' (Limit: {vod_limit}/ch, Category: {category_id}).")
         
         vod_streams_json = []
-        for vod in vods:
+        for vod in filtered_vods:
             vod_streams_json.append({
                 "num": vod['id'], "name": f"[{vod['category']}] {vod['title']}", "stream_type": "movie", 
                 "stream_id": vod['id'], # Use internal ID to avoid 32-bit overflow in TiviMate
