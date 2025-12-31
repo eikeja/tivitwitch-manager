@@ -256,6 +256,45 @@ def player_api():
             })
         return jsonify(vod_streams_json)
 
+    # --- 6. VOD Info ---
+    if action == 'get_vod_info':
+        vod_id = request.args.get('vod_id')
+        current_app.logger.info(f"[XC-API] Fetching info for VOD ID: {vod_id}")
+        
+        # Try finding by vod_id first (String Twitch ID)
+        row = db.execute("SELECT * FROM vod_streams WHERE vod_id = ?", (vod_id,)).fetchone()
+        
+        # Fallback: Try finding by internal ID if not found (TiviMate might be sending 'num' instead of 'stream_id'?)
+        if not row and str(vod_id).isdigit():
+             row = db.execute("SELECT * FROM vod_streams WHERE id = ?", (vod_id,)).fetchone()
+
+        if row:
+            info = {
+                "movie_image": row['thumbnail_url'],
+                "genre": row['category'],
+                "plot": row['title'],
+                "cast": row['channel_login'],
+                "rating": "5.0",
+                "director": row['channel_login'],
+                "releasedate": row['created_at'],
+                "tmdb_id": "",
+                "duration_secs": 0,
+                "youtube_trailer": "",
+                "backdrop_path": [],
+            }
+            movie_data = {
+                "stream_id": row['vod_id'],
+                "name": row['title'],
+                "container_extension": "mp4",
+                "custom_sid": "",
+                "added": str(int(time.time())), 
+                "category_id": category_map.get(row['category'], "1"),
+            }
+            return jsonify({"info": info, "movie_data": movie_data})
+        else:
+             current_app.logger.warning(f"[XC-API] VOD info not found for ID: {vod_id}")
+             return jsonify({})
+
     if action in ('get_series_categories', 'get_series'):
         current_app.logger.info(f"[XC-API] Delivering empty series response for Action '{action}'.")
         return jsonify([]) 
@@ -363,6 +402,22 @@ def play_vod_stream_xc(username, password, stream_id, ext=None):
         return "Invalid credentials", 401
 
     twitch_vod_id = stream_id 
+    
+    # Resolve potential internal ID to Twitch VOD ID
+    db = get_db()
+    # First check if it's already a valid Twitch VOD ID (usually long string of digits)
+    # But strictly, check DB first to be safe or if stream_id is internal ID
+    row = db.execute("SELECT vod_id FROM vod_streams WHERE vod_id = ?", (stream_id,)).fetchone()
+    if row:
+        twitch_vod_id = row['vod_id']
+    else:
+        # Fallback: check if it is an internal ID
+        if str(stream_id).isdigit():
+             row = db.execute("SELECT vod_id FROM vod_streams WHERE id = ?", (stream_id,)).fetchone()
+             if row:
+                 twitch_vod_id = row['vod_id']
+                 current_app.logger.info(f"[Play-VOD-XC]: Resolved internal ID {stream_id} to Twitch VOD ID {twitch_vod_id}")
+
     current_app.logger.info(f"[Play-VOD-XC]: Client requested HLS-STUFE-1 for VOD {twitch_vod_id}")
     session = streamlink.Streamlink()
 
