@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const vodEnabled = document.getElementById('setting-vod-enabled');
     const clientId = document.getElementById('setting-client-id');
     const clientSecret = document.getElementById('setting-client-secret');
+    const authToken = document.getElementById('setting-auth-token'); // New
     const vodCount = document.getElementById('setting-vod-count');
     const saveBtn = document.getElementById('save-settings-btn');
     const settingsStatus = document.getElementById('settings-status');
@@ -101,6 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (liveStreamMode) liveStreamMode.value = settings.live_stream_mode || 'proxy';
             if (vodEnabled) vodEnabled.checked = settings.vod_enabled === 'true';
             if (clientId) clientId.value = settings.twitch_client_id || '';
+            if (clientSecret) clientSecret.value = settings.twitch_client_secret || '';
+            if (authToken) authToken.value = settings.twitch_auth_token || '';
             if (vodCount) vodCount.value = settings.vod_count_per_channel || '5';
 
             if (m3uEnabled && m3uInfoBox) {
@@ -218,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     vod_enabled: vodEnabled ? vodEnabled.checked : false,
                     twitch_client_id: clientId ? clientId.value : '',
                     twitch_client_secret: clientSecret ? clientSecret.value : '',
+                    twitch_auth_token: authToken ? authToken.value : '',
                     vod_count_per_channel: vodCount ? vodCount.value : '5',
                     m3u_enabled: m3uEnabled ? m3uEnabled.checked : false
                 };
@@ -348,6 +352,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (liveStreamMode) liveStreamMode.value = settings.live_stream_mode || 'proxy';
             if (vodEnabled) vodEnabled.checked = settings.vod_enabled === 'true';
             if (clientId) clientId.value = settings.twitch_client_id || '';
+            if (clientSecret) clientSecret.value = settings.twitch_client_secret || '';
+            if (authToken) authToken.value = settings.twitch_auth_token || '';
             if (vodCount) vodCount.value = settings.vod_count_per_channel || '5';
             if (m3uEnabled && m3uInfoBox) {
                 m3uEnabled.checked = settings.m3u_enabled === 'true';
