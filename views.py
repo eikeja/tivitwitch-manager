@@ -192,8 +192,8 @@ def api_get_settings():
     # Inject User's Twitch Credentials
     # (Client Secret is never sent back for security, just like global)
     settings['twitch_client_id'] = g.user['client_id'] or ""
-    settings['twitch_client_secret'] = "" # Placeholder
-    settings['twitch_auth_token'] = g.user['auth_token'] or ""
+    settings['twitch_client_secret'] = "******" if g.user['client_secret'] else ""
+    settings['twitch_auth_token'] = "******" if g.user['auth_token'] else ""
     
     current_app.logger.info(f"[WebAPI] GET /api/settings: Loading settings for {g.user['username']}.")
     return jsonify(settings)
@@ -221,20 +221,29 @@ def api_save_settings():
              save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
              save('log_level', new_log_level_str)
         
-        # 2. Save User-Specific Settings (Twitch Credentials & Auth Token)
+        # 2. Save User-Specific Settings (Dynamically)
         user_client_id = data.get('twitch_client_id', '').strip()
         user_client_secret = data.get('twitch_client_secret')
-        user_auth_token = data.get('twitch_auth_token', '').strip()
+        user_auth_token = data.get('twitch_auth_token') # Raw value
+
+        fields = ["client_id = ?"]
+        params = [user_client_id]
+
+        # Only update secret if provided and not hidden mask
+        if user_client_secret and user_client_secret != "******":
+            fields.append("client_secret = ?")
+            params.append(user_client_secret)
+
+        # Only update token if provided and not hidden mask
+        if user_auth_token is not None and user_auth_token != "******":
+             fields.append("auth_token = ?")
+             params.append(user_auth_token.strip())
+
+        params.append(g.user['id'])
+        query = f"UPDATE users SET {', '.join(fields)} WHERE id = ?"
         
-        if user_client_secret:
-            # Update ID, Secret and Token
-            conn.execute("UPDATE users SET client_id = ?, client_secret = ?, auth_token = ? WHERE id = ?", 
-                         (user_client_id, user_client_secret, user_auth_token, g.user['id']))
-            current_app.logger.info(f"[WebAPI] Updated credentials for user {g.user['username']}.")
-        else:
-            # Only update ID and Token if secret is not changed
-            conn.execute("UPDATE users SET client_id = ?, auth_token = ? WHERE id = ?", 
-                         (user_client_id, user_auth_token, g.user['id']))
+        conn.execute(query, params)
+        current_app.logger.info(f"[WebAPI] Updated settings for user {g.user['username']}.")
             
         conn.commit()
         
