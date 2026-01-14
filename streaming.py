@@ -343,13 +343,19 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     ringbuffer_size = get_setting('ringbuffer_size', '16777216')
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
 
+    sl_logger = logging.getLogger("streamlink")
     if debug_logging:
-        logging.getLogger("streamlink").setLevel(logging.DEBUG)
-        # Ensure our app logger handlers are propagating or setup basic config if needed for streamlink
-        # Usually streamlink logs to root logger or its own. We want it in console.
-        logging.basicConfig(level=logging.DEBUG) 
+        sl_logger.setLevel(logging.DEBUG)
+        # Ensure we have a handler
+        if not sl_logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('[%(name)s] %(levelname)s: %(message)s')
+            handler.setFormatter(formatter)
+            sl_logger.addHandler(handler)
     else:
-        logging.getLogger("streamlink").setLevel(logging.ERROR) # Quiet by default
+        sl_logger.setLevel(logging.ERROR)
+        # Remove handlers if we want total silence, or just let level filter it
+        # Keeping handlers is fine as long as level is ERROR.
 
     session = streamlink.Streamlink()
     session.set_option("hls-live-edge", int(hls_live_edge))
@@ -398,10 +404,16 @@ def play_live_m3u(stream_id):
     ringbuffer_size = get_setting('ringbuffer_size', '16777216')
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
 
+    sl_logger = logging.getLogger("streamlink")
     if debug_logging:
-        logging.getLogger("streamlink").setLevel(logging.DEBUG)
+        sl_logger.setLevel(logging.DEBUG)
+        if not sl_logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('[%(name)s] %(levelname)s: %(message)s')
+            handler.setFormatter(formatter)
+            sl_logger.addHandler(handler)
     else:
-        logging.getLogger("streamlink").setLevel(logging.ERROR)
+        sl_logger.setLevel(logging.ERROR)
 
     session = streamlink.Streamlink()
     session.set_option("hls-live-edge", int(hls_live_edge))
