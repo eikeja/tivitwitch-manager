@@ -202,7 +202,15 @@ def api_get_settings():
 def api_save_settings():
     """Saves settings from the Web UI."""
     data = request.json
-    current_app.logger.info(f"[WebAPI] POST /api/settings: Saving settings: {data}")
+    
+    # Secure logging: mask sensitive fields
+    log_data = data.copy()
+    if 'twitch_client_secret' in log_data and log_data['twitch_client_secret']:
+        log_data['twitch_client_secret'] = '******'
+    if 'twitch_auth_token' in log_data and log_data['twitch_auth_token']:
+        log_data['twitch_auth_token'] = '******'
+        
+    current_app.logger.info(f"[WebAPI] POST /api/settings: Saving settings: {log_data}")
     conn = get_db()
     
     new_log_level_str = data.get('log_level', 'info')
@@ -229,12 +237,12 @@ def api_save_settings():
         fields = ["client_id = ?"]
         params = [user_client_id]
 
-        # Only update secret if provided and not hidden mask
-        if user_client_secret and user_client_secret != "******":
+        # Only update secret if provided (even empty) and not hidden mask
+        if user_client_secret is not None and user_client_secret != "******":
             fields.append("client_secret = ?")
             params.append(user_client_secret)
 
-        # Only update token if provided and not hidden mask
+        # Only update token if provided (even empty) and not hidden mask
         if user_auth_token is not None and user_auth_token != "******":
              fields.append("auth_token = ?")
              params.append(user_auth_token.strip())
