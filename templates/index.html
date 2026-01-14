@@ -121,12 +121,21 @@
                 </div>
 
                 <div class="form-row">
+                    <label for="setting-auth-token">Twitch Auth Token (OAuth) <span
+                            style="font-weight:normal; color:#888;">(Optional)</span></label>
+                    <input type="password" id="setting-auth-token" placeholder="Enter OAuth Token (for Ad-Free/Turbo)">
+                </div>
+
+                <div class="form-row">
                     <label for="setting-vod-count">VODs per Channel</label>
                     <input type="number" id="setting-vod-count" min="1" max="50" value="5">
                 </div>
 
                 <div class="form-footer">
-                    <a href="#" id="open-modal-btn">How do I get Twitch Credentials?</a>
+                    <div style="display:flex; flex-direction:column; gap:5px; align-items:flex-start;">
+                        <a href="#" id="open-modal-btn">How do I get Twitch Credentials?</a>
+                        <a href="#" id="open-auth-modal-btn">How do I get my Auth Token?</a>
+                    </div>
                     <button id="save-settings-btn" class="btn-green">Save Settings</button>
                 </div>
                 <p id="settings-status"></p>
@@ -162,6 +171,25 @@
                     this value immediately (it will not be shown again).</li>
                 <li>Paste both values into the settings on this page and click "Save".</li>
             </ol>
+        </div>
+    </div>
+    </div>
+
+    <div id="auth-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>How to get your Twitch Auth Token</h2>
+            <p>This token allows the proxy to "watch" streams as you. Use this if you have <strong>Twitch Turbo</strong>
+                or a <strong>Subscription</strong> to avoid ads (and the resulting stream freeze).</p>
+            <ol>
+                <li>Open <a href="https://twitch.tv" target="_blank">Twitch.tv</a> in your browser and log in.</li>
+                <li>Open Developer Tools (F12) -> <strong>Application</strong> (or Storage) tab.</li>
+                <li>Expand <strong>Cookies</strong> -> <code>https://www.twitch.tv</code>.</li>
+                <li>Find the cookie named <code>auth-token</code>.</li>
+                <li>Copy its Value (usually a 30-character string).</li>
+                <li>Paste it into the <strong>Twitch Auth Token</strong> field in Settings.</li>
+            </ol>
+            <p><strong>Warning:</strong> This gives full access to your account. Do not share this token.</p>
         </div>
     </div>
 
@@ -223,6 +251,31 @@
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        // Quick inline script for the new modal (easier than parsing full script.js)
+        document.addEventListener('DOMContentLoaded', () => {
+            const authModal = document.getElementById('auth-modal');
+            const openAuthBtn = document.getElementById('open-auth-modal-btn');
+            const closeAuthBtn = authModal.querySelector('.close-btn');
+
+            if (openAuthBtn) {
+                openAuthBtn.onclick = (e) => {
+                    e.preventDefault();
+                    authModal.style.display = 'flex';
+                }
+            }
+            if (closeAuthBtn) {
+                closeAuthBtn.onclick = () => {
+                    authModal.style.display = 'none';
+                }
+            }
+            window.onclick = (event) => {
+                if (event.target == authModal) {
+                    authModal.style.display = 'none';
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

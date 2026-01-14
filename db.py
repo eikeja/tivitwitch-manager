@@ -19,6 +19,15 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        
+        # Simple Migration Check (Auto-add auth_token column)
+        try:
+            g.db.execute("SELECT auth_token FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            current_app.logger.info("[DB] Migrating: Adding 'auth_token' column to users table.")
+            g.db.execute("ALTER TABLE users ADD COLUMN auth_token TEXT")
+            g.db.commit()
+            
     return g.db
 
 def close_db(e=None):

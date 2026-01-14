@@ -193,6 +193,7 @@ def api_get_settings():
     # (Client Secret is never sent back for security, just like global)
     settings['twitch_client_id'] = g.user['client_id'] or ""
     settings['twitch_client_secret'] = "" # Placeholder
+    settings['twitch_auth_token'] = g.user['auth_token'] or ""
     
     current_app.logger.info(f"[WebAPI] GET /api/settings: Loading settings for {g.user['username']}.")
     return jsonify(settings)
@@ -220,19 +221,20 @@ def api_save_settings():
              save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
              save('log_level', new_log_level_str)
         
-        # 2. Save User-Specific Settings (Twitch Credentials)
+        # 2. Save User-Specific Settings (Twitch Credentials & Auth Token)
         user_client_id = data.get('twitch_client_id', '').strip()
         user_client_secret = data.get('twitch_client_secret')
+        user_auth_token = data.get('twitch_auth_token', '').strip()
         
         if user_client_secret:
-            # Update ID and Secret (if secret is provided)
-            conn.execute("UPDATE users SET client_id = ?, client_secret = ? WHERE id = ?", 
-                         (user_client_id, user_client_secret, g.user['id']))
+            # Update ID, Secret and Token
+            conn.execute("UPDATE users SET client_id = ?, client_secret = ?, auth_token = ? WHERE id = ?", 
+                         (user_client_id, user_client_secret, user_auth_token, g.user['id']))
             current_app.logger.info(f"[WebAPI] Updated credentials for user {g.user['username']}.")
         else:
-            # Only update ID if secret is not changed
-            conn.execute("UPDATE users SET client_id = ? WHERE id = ?", 
-                         (user_client_id, g.user['id']))
+            # Only update ID and Token if secret is not changed
+            conn.execute("UPDATE users SET client_id = ?, auth_token = ? WHERE id = ?", 
+                         (user_client_id, user_auth_token, g.user['id']))
             
         conn.commit()
         

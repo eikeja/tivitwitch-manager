@@ -327,13 +327,19 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     db = get_db()
     # stream_id in M3U/XC is now channels.id
     # We need to find the login_name from channels table (and ensure user owns it? strict check optional but good)
-    channel = db.execute('SELECT login_name FROM channels WHERE id = ?', (stream_id,)).fetchone()
+    channel = db.execute('''
+        SELECT c.login_name, u.auth_token 
+        FROM channels c 
+        JOIN users u ON c.user_id = u.id 
+        WHERE c.id = ?
+    ''', (stream_id,)).fetchone()
     
     if not channel:
         current_app.logger.error(f"[Play-Live-XC] Stream with ID {stream_id} not found in Channels.")
         return "Stream not found", 404
         
     login_name = channel['login_name']
+    auth_token = channel['auth_token']
     
     live_mode = get_setting('live_stream_mode', 'proxy') # Default 'proxy'
     current_app.logger.info(f"[Play-Live-XC] Request for {login_name} (ID: {stream_id}). Mode: {live_mode}")
@@ -365,6 +371,8 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     session.set_option("ringbuffer-size", int(ringbuffer_size))
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     session.set_option("twitch-disable-ads", disable_ads)
+    if auth_token:
+        session.set_option("twitch-auth-token", auth_token)
     
     try:
         streams = session.streams(f'twitch.tv/{login_name}')
@@ -390,13 +398,19 @@ def play_live_m3u(stream_id):
     """M3U endpoint, also respects the live stream mode."""
     # This ID is channels.id
     db = get_db()
-    channel = db.execute('SELECT login_name FROM channels WHERE id = ?', (stream_id,)).fetchone()
+    channel = db.execute('''
+        SELECT c.login_name, u.auth_token 
+        FROM channels c 
+        JOIN users u ON c.user_id = u.id 
+        WHERE c.id = ?
+    ''', (stream_id,)).fetchone()
     
     if not channel:
         current_app.logger.error(f"[Play-Live-M3U] Stream with ID {stream_id} not found.")
         return "Stream not found", 404
         
     login_name = channel['login_name']
+    auth_token = channel['auth_token']
     
     live_mode = get_setting('live_stream_mode', 'proxy')
     current_app.logger.info(f"[Play-Live-M3U] Request for {login_name} (ID: {stream_id}). Mode: {live_mode}")
@@ -425,6 +439,8 @@ def play_live_m3u(stream_id):
     session.set_option("ringbuffer-size", int(ringbuffer_size))
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     session.set_option("twitch-disable-ads", disable_ads)
+    if auth_token:
+        session.set_option("twitch-auth-token", auth_token)
     
     try:
         streams = session.streams(f'twitch.tv/{login_name}')
