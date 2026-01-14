@@ -372,6 +372,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     session.set_option("twitch-disable-ads", disable_ads)
     if auth_token:
+        current_app.logger.info(f"[Streamlink] Applying User Auth Token for stream: {login_name}")
         session.set_option("twitch-auth-token", auth_token)
     
     try:
