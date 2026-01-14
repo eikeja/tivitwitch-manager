@@ -364,7 +364,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     session.set_option("hls-playlist-reload-attempts", 3)
     session.set_option("ringbuffer-size", int(ringbuffer_size))
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    session.set_plugin_option("twitch", "disable-ads", disable_ads)
+    session.set_option("twitch-disable-ads", disable_ads)
     
     try:
         streams = session.streams(f'twitch.tv/{login_name}')
@@ -424,7 +424,7 @@ def play_live_m3u(stream_id):
     session.set_option("hls-playlist-reload-attempts", 3)
     session.set_option("ringbuffer-size", int(ringbuffer_size))
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    session.set_plugin_option("twitch", "disable-ads", disable_ads)
+    session.set_option("twitch-disable-ads", disable_ads)
     
     try:
         streams = session.streams(f'twitch.tv/{login_name}')
