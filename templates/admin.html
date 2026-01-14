@@ -191,7 +191,7 @@
         <div id="tab-settings" class="tab-content admin-section" style="margin-top:0;">
             <h2>Global Settings & Email Configuration</h2>
             <form id="settings-form" method="POST" action="{{ url_for('views.admin_save_settings') }}">
-                
+
                 <div class="form-row">
                     <label>Log Level</label>
                     <select name="log_level">
@@ -227,14 +227,16 @@
 
                 <h3 style="margin-top: 20px;">Email Templates</h3>
                 <div class="form-row"><label>Register Subject</label><input type="text" name="email_subject_register"
-                        value="{{ settings.email_subject_register }}"></div>
+                        value="{{ settings.email_subject_register or 'Welcome to TiviTwitch!' }}"></div>
                 <div class="form-row"><label>Register Body</label><textarea name="email_body_register"
-                        rows="3">{{ settings.email_body_register }}</textarea></div>
+                        rows="3">{{ settings.email_body_register or "Hello,\n\nYour account has been successfully created.\n\nUsername: {username}\nPassword: {password}\n\nEnjoy your stream!" }}</textarea>
+                </div>
 
                 <div class="form-row"><label>Reset Password Subject</label><input type="text" name="email_subject_reset"
-                        value="{{ settings.email_subject_reset }}"></div>
+                        value="{{ settings.email_subject_reset or 'Password Reset Request' }}"></div>
                 <div class="form-row"><label>Reset Password Body (use {link})</label><textarea name="email_body_reset"
-                        rows="3">{{ settings.email_body_reset }}</textarea></div>
+                        rows="3">{{ settings.email_body_reset or "Hello,\n\nYour password has been reset.\n\nNew Password: {password}" }}</textarea>
+                </div>
 
                 <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Global Settings</button>
             </form>
@@ -243,20 +245,36 @@
         <!-- Advanced Settings Tab -->
         <div id="tab-advanced" class="tab-content admin-section" style="margin-top:0;">
             <h2>Advanced Streaming Configuration</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px;">These settings control the low-level behavior of the stream proxy. Incorrect values can cause instability.</p>
-            
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">These settings control the low-level behavior
+                of the stream proxy. Incorrect values can cause instability.</p>
+
             <form id="settings-form" method="POST" action="{{ url_for('views.admin_save_settings') }}">
                 <input type="hidden" name="advanced_mode" value="true">
-                
+
                 <h3 style="margin-top: 20px;">Streamlink & HLS</h3>
-                
+
                 <div class="form-row">
                     <div>
                         <label>Enable Debug Logging (HLS)</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">Show verbose Streamlink logs in console. Useful for debugging discontinuities.</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Show verbose Streamlink logs in
+                            console. Useful for debugging discontinuities.</div>
                     </div>
                     <label class="switch">
-                        <input type="checkbox" name="streamlink_log_enabled" {% if settings.streamlink_log_enabled == 'true' %}checked{% endif %}>
+                        <input type="checkbox" name="streamlink_log_enabled" {% if
+                            settings.streamlink_log_enabled=='true' %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>Disable Twitch Ads (Filter Segments)</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">If enabled, ads are filtered out
+                            (may cause freeze). Uncheck to allow ads & prevent freeze.</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="twitch_disable_ads" {% if settings.twitch_disable_ads=='true'
+                            %}checked{% endif %}>
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -264,23 +282,28 @@
                 <div class="form-row">
                     <div>
                         <label>HLS Live Edge</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">Number of segments to buffer before starting. Higher = more stable, more latency. Default: 6</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Number of segments to buffer
+                            before starting. Higher = more stable, more latency. Default: 6</div>
                     </div>
-                    <input type="number" name="hls_live_edge" value="{{ settings.hls_live_edge or '6' }}" min="1" max="20">
+                    <input type="number" name="hls_live_edge" value="{{ settings.hls_live_edge or '6' }}" min="1"
+                        max="20">
                 </div>
 
                 <div class="form-row">
                     <div>
                         <label>HLS Segment Threads</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">Parallel threads for downloading segments. Default: 4</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Parallel threads for downloading
+                            segments. Default: 4</div>
                     </div>
-                    <input type="number" name="hls_segment_threads" value="{{ settings.hls_segment_threads or '4' }}" min="1" max="10">
+                    <input type="number" name="hls_segment_threads" value="{{ settings.hls_segment_threads or '4' }}"
+                        min="1" max="10">
                 </div>
 
                 <div class="form-row">
                     <div>
                         <label>Ringbuffer Size</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">Streamlink internal memory buffer. Default: 16M</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Streamlink internal memory buffer.
+                            Default: 16M</div>
                     </div>
                     <input type="text" name="ringbuffer_size" value="{{ settings.ringbuffer_size or '16777216' }}">
                 </div>

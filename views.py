@@ -100,6 +100,7 @@ def admin_save_settings():
         # Advanced Settings
         if data.get('advanced_mode') == 'true':
             save('streamlink_log_enabled', 'true' if data.get('streamlink_log_enabled') else 'false')
+            save('twitch_disable_ads', 'true' if data.get('twitch_disable_ads') else 'false')
             save('hls_live_edge', data.get('hls_live_edge', '6'))
             save('hls_segment_threads', data.get('hls_segment_threads', '4'))
             save('ringbuffer_size', data.get('ringbuffer_size', '16777216'))
