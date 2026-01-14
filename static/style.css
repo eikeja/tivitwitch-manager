@@ -242,6 +242,7 @@ input[type="password"],
 input[type="text"],
 input[type="number"],
 input[type="email"],
+textarea,
 #settings-form select {
     padding: 12px;
     border: 1px solid #555;
@@ -255,12 +256,14 @@ input[type="email"],
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
+    font-family: inherit;
 }
 
 input[type="password"]:focus,
 input[type="text"]:focus,
 input[type="number"]:focus,
 input[type="email"]:focus,
+textarea:focus,
 #settings-form select:focus {
     border-color: var(--accent-purple);
     box-shadow: 0 0 8px rgba(138, 67, 247, 0.5);
@@ -439,7 +442,8 @@ ul#channels li button:hover {
 #settings-form input[type="text"],
 #settings-form input[type="password"],
 #settings-form input[type="email"],
-#settings-form select {
+#settings-form select, 
+#settings-form textarea {
     width: 250px;
     font-size: 14px;
     padding: 8px 10px;
@@ -665,4 +669,46 @@ input:checked+.slider:before {
 
 .premium-btn:hover {
     background-color: #ffed4a;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-link {
+    background-color: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: var(--transition-speed);
+    border-bottom: 3px solid transparent;
+}
+
+.tab-link:hover {
+    color: var(--text-primary);
+}
+
+.tab-link.active {
+    color: var(--accent-purple);
+    border-bottom: 3px solid var(--accent-purple);
+}
+
+.tab-content {
+    display: none;
+    animation: fadeEffect 0.5s;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeEffect {
+    from {opacity: 0;}
+    to {opacity: 1;}
 }

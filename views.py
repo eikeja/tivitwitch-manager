@@ -94,7 +94,15 @@ def admin_save_settings():
         save('email_subject_register', data.get('email_subject_register', ''))
         save('email_body_register', data.get('email_body_register', ''))
         save('email_subject_reset', data.get('email_subject_reset', ''))
+        save('email_subject_reset', data.get('email_subject_reset', ''))
         save('email_body_reset', data.get('email_body_reset', ''))
+
+        # Advanced Settings
+        if data.get('advanced_mode') == 'true':
+            save('streamlink_log_enabled', 'true' if data.get('streamlink_log_enabled') else 'false')
+            save('hls_live_edge', data.get('hls_live_edge', '6'))
+            save('hls_segment_threads', data.get('hls_segment_threads', '4'))
+            save('ringbuffer_size', data.get('ringbuffer_size', '16777216'))
 
         conn.commit()
         

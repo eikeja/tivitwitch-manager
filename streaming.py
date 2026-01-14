@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import html
 from urllib.parse import urljoin, urlparse
 import os
+import logging
 
 bp = Blueprint('streaming', __name__)
 
@@ -337,11 +338,24 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     live_mode = get_setting('live_stream_mode', 'proxy') # Default 'proxy'
     current_app.logger.info(f"[Play-Live-XC] Request for {login_name} (ID: {stream_id}). Mode: {live_mode}")
 
+    hls_live_edge = get_setting('hls_live_edge', '6')
+    hls_segment_threads = get_setting('hls_segment_threads', '4')
+    ringbuffer_size = get_setting('ringbuffer_size', '16777216')
+    debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
+
+    if debug_logging:
+        logging.getLogger("streamlink").setLevel(logging.DEBUG)
+        # Ensure our app logger handlers are propagating or setup basic config if needed for streamlink
+        # Usually streamlink logs to root logger or its own. We want it in console.
+        logging.basicConfig(level=logging.DEBUG) 
+    else:
+        logging.getLogger("streamlink").setLevel(logging.ERROR) # Quiet by default
+
     session = streamlink.Streamlink()
-    session.set_option("hls-live-edge", 6)
-    session.set_option("hls-segment-threads", 4)
+    session.set_option("hls-live-edge", int(hls_live_edge))
+    session.set_option("hls-segment-threads", int(hls_segment_threads))
     session.set_option("hls-playlist-reload-attempts", 3)
-    session.set_option("ringbuffer-size", 16777216)
+    session.set_option("ringbuffer-size", int(ringbuffer_size))
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     
     try:
@@ -379,11 +393,21 @@ def play_live_m3u(stream_id):
     live_mode = get_setting('live_stream_mode', 'proxy')
     current_app.logger.info(f"[Play-Live-M3U] Request for {login_name} (ID: {stream_id}). Mode: {live_mode}")
     
+    hls_live_edge = get_setting('hls_live_edge', '6')
+    hls_segment_threads = get_setting('hls_segment_threads', '4')
+    ringbuffer_size = get_setting('ringbuffer_size', '16777216')
+    debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
+
+    if debug_logging:
+        logging.getLogger("streamlink").setLevel(logging.DEBUG)
+    else:
+        logging.getLogger("streamlink").setLevel(logging.ERROR)
+
     session = streamlink.Streamlink()
-    session.set_option("hls-live-edge", 6)
-    session.set_option("hls-segment-threads", 4)
+    session.set_option("hls-live-edge", int(hls_live_edge))
+    session.set_option("hls-segment-threads", int(hls_segment_threads))
     session.set_option("hls-playlist-reload-attempts", 3)
-    session.set_option("ringbuffer-size", 16777216)
+    session.set_option("ringbuffer-size", int(ringbuffer_size))
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     
     try:

@@ -69,7 +69,16 @@
         {% endif %}
         {% endwith %}
 
-        <div class="admin-section">
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab-link active" onclick="openTab(event, 'tab-users')">User Management</button>
+            <button class="tab-link" onclick="openTab(event, 'tab-vouchers')">Vouchers</button>
+            <button class="tab-link" onclick="openTab(event, 'tab-settings')">General Settings</button>
+            <button class="tab-link" onclick="openTab(event, 'tab-advanced')">Advanced Settings</button>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="tab-users" class="tab-content active admin-section" style="margin-top:0;">
             <h2>User Management</h2>
             <table>
                 <thead>
@@ -130,9 +139,8 @@
             </table>
         </div>
 
-
-
-        <div class="admin-section">
+        <!-- Vouchers Tab -->
+        <div id="tab-vouchers" class="tab-content admin-section" style="margin-top:0;">
             <h2>Voucher Management</h2>
             <form method="POST" action="{{ url_for('views.admin_vouchers') }}" style="margin-bottom: 20px;">
                 <input type="hidden" name="action" value="create">
@@ -179,9 +187,11 @@
             </table>
         </div>
 
-        <div class="admin-section">
+        <!-- Global Settings Tab -->
+        <div id="tab-settings" class="tab-content admin-section" style="margin-top:0;">
             <h2>Global Settings & Email Configuration</h2>
-            <form method="POST" action="{{ url_for('views.admin_save_settings') }}">
+            <form id="settings-form" method="POST" action="{{ url_for('views.admin_save_settings') }}">
+                
                 <div class="form-row">
                     <label>Log Level</label>
                     <select name="log_level">
@@ -229,6 +239,73 @@
                 <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Global Settings</button>
             </form>
         </div>
+
+        <!-- Advanced Settings Tab -->
+        <div id="tab-advanced" class="tab-content admin-section" style="margin-top:0;">
+            <h2>Advanced Streaming Configuration</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">These settings control the low-level behavior of the stream proxy. Incorrect values can cause instability.</p>
+            
+            <form id="settings-form" method="POST" action="{{ url_for('views.admin_save_settings') }}">
+                <input type="hidden" name="advanced_mode" value="true">
+                
+                <h3 style="margin-top: 20px;">Streamlink & HLS</h3>
+                
+                <div class="form-row">
+                    <div>
+                        <label>Enable Debug Logging (HLS)</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Show verbose Streamlink logs in console. Useful for debugging discontinuities.</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="streamlink_log_enabled" {% if settings.streamlink_log_enabled == 'true' %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>HLS Live Edge</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Number of segments to buffer before starting. Higher = more stable, more latency. Default: 6</div>
+                    </div>
+                    <input type="number" name="hls_live_edge" value="{{ settings.hls_live_edge or '6' }}" min="1" max="20">
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>HLS Segment Threads</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Parallel threads for downloading segments. Default: 4</div>
+                    </div>
+                    <input type="number" name="hls_segment_threads" value="{{ settings.hls_segment_threads or '4' }}" min="1" max="10">
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>Ringbuffer Size</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Streamlink internal memory buffer. Default: 16M</div>
+                    </div>
+                    <input type="text" name="ringbuffer_size" value="{{ settings.ringbuffer_size or '16777216' }}">
+                </div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Advanced Settings</button>
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab-link");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
     </div>
 </body>
 
