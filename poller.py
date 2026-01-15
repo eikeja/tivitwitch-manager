@@ -275,6 +275,20 @@ def update_database():
     finally:
         conn.close()
 
+def parse_duration(duration_str):
+    """Parses Twitch duration string (e.g., '1h30m5s') into seconds."""
+    if not duration_str: return 0
+    total_seconds = 0
+    import re
+    # Match groups: 1h, 30m, 5s
+    match = re.match(r'((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?', duration_str)
+    if match:
+        h = int(match.group('h') or 0)
+        m = int(match.group('m') or 0)
+        s = int(match.group('s') or 0)
+        total_seconds = h * 3600 + m * 60 + s
+    return total_seconds
+
 def process_vods(cursor, token, client_id, login_names, user_id_map, vod_count):
     """Helper to process VODs for a specific user session."""
     
@@ -289,10 +303,22 @@ def process_vods(cursor, token, client_id, login_names, user_id_map, vod_count):
         
         for vod in vods:
             thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
+            duration_seconds = parse_duration(vod.get('duration', '0s'))
+            
             cursor.execute(
-                "INSERT OR REPLACE INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?)",
-                (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail)
+                "INSERT OR REPLACE INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url, duration) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail, duration_seconds)
             )
+
+        # Cleanup: Remove VODs for this channel that were NOT in the fetched list
+        valid_vod_ids = [v['id'] for v in vods]
+        if valid_vod_ids:
+            placeholders = ','.join(['?'] * len(valid_vod_ids))
+            # We need to pass the login_name AND the list of valid IDs
+            params = [login_name] + valid_vod_ids
+            cursor.execute(f"DELETE FROM vod_streams WHERE channel_login = ? AND vod_id NOT IN ({placeholders})", params)
+            logging.info(f"[Poller-VOD] Cleaned up VODs for {login_name}. Kept {len(valid_vod_ids)} VODs.")
+
             
 # --- Main run loop ---
 if __name__ == "__main__":

@@ -292,7 +292,7 @@ def player_api():
                 "director": row['channel_login'],
                 "releasedate": row['created_at'],
                 "tmdb_id": "",
-                "duration_secs": 0,
+                "duration_secs": row['duration'],
                 "youtube_trailer": "",
                 "backdrop_path": [],
             }
@@ -303,6 +303,7 @@ def player_api():
                 "custom_sid": "",
                 "added": str(int(time.time())), 
                 "category_id": category_map.get(row['category'], "1"),
+                "duration_secs": row['duration'],
             }
             return jsonify({"info": info, "movie_data": movie_data})
         else:

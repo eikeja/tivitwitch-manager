@@ -108,6 +108,7 @@ add_column('live_streams', 'epg_channel_id', 'TEXT')
 add_column('live_streams', 'stream_title', 'TEXT')
 add_column('live_streams', 'stream_game', 'TEXT')
 add_column('vod_streams', 'thumbnail_url', 'TEXT')
+add_column('vod_streams', 'duration', 'INTEGER DEFAULT 0')
 
 # --- 3. Add default settings ---
 default_settings = {
