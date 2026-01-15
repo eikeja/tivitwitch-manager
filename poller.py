@@ -305,8 +305,19 @@ def process_vods(cursor, token, client_id, login_names, user_id_map, vod_count):
             thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
             duration_seconds = parse_duration(vod.get('duration', '0s'))
             
+            # Use UPSERT to preserve the 'id' (Primary Key) if the VOD already exists.
+            # strict=True on the DB init is not set for UNIQUE(vod_id, channel_login), 
+            # but init_db.py defines UNIQUE(vod_id, channel_login).
             cursor.execute(
-                "INSERT OR REPLACE INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url, duration) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                """INSERT INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url, duration) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(vod_id, channel_login) DO UPDATE SET
+                   title=excluded.title,
+                   created_at=excluded.created_at,
+                   category=excluded.category,
+                   thumbnail_url=excluded.thumbnail_url,
+                   duration=excluded.duration
+                """,
                 (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail, duration_seconds)
             )
 
