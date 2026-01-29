@@ -264,6 +264,13 @@
                             settings.streamlink_log_enabled=='true' %}checked{% endif %}>
                         <span class="slider"></span>
                     </label>
+                    </label>
+                </div>
+
+                <div class="form-row">
+                    <a href="{{ url_for('views.admin_logs') }}" target="_blank" class="text-btn"
+                        style="border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; text-decoration: none;">📄
+                        View System Logs</a>
                 </div>
 
                 <!-- 
@@ -282,8 +289,12 @@
                 <div class="form-row">
                     <div>
                         <label>HLS Live Edge</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">Number of segments to buffer
-                            before starting. Higher = more stable, more latency. Default: 6</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">
+                            Number of segments to buffer before starting. Default: 6 (Standard) or 10 (High
+                            Stability).<br>
+                            <strong>Effect:</strong> Higher = Less Lag/Buffering, but ~20s delay on start. Lower =
+                            Faster start, more prone to lag.
+                        </div>
                     </div>
                     <input type="number" name="hls_live_edge" value="{{ settings.hls_live_edge or '6' }}" min="1"
                         max="20">
@@ -302,8 +313,11 @@
                 <div class="form-row">
                     <div>
                         <label>Ringbuffer Size</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">Streamlink internal memory buffer.
-                            Default: 16M</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">
+                            Streamlink internal memory buffer in bytes. Default: 16777216 (16MB) or 33554432 (32MB).<br>
+                            <strong>Effect:</strong> Higher = Smoother playback during network spikes. Uses more RAM per
+                            stream.
+                        </div>
                     </div>
                     <input type="text" name="ringbuffer_size" value="{{ settings.ringbuffer_size or '16777216' }}">
                 </div>

@@ -37,11 +37,32 @@ def create_app():
     log_level = get_startup_log_level()
     
     app.logger.setLevel(log_level)
+    
+    # 1. Stream Handler (Stdout)
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s [Flask] [%(filename)s:%(lineno)d] - %(message)s'
     ))
     app.logger.addHandler(stream_handler)
+    
+    # 2. File Handler (Rotating)
+    try:
+        from logging.handlers import RotatingFileHandler
+        # Ensure instance dir exists
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        log_path = os.path.join(base_dir, 'instance', 'app.log')
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        
+        file_handler = RotatingFileHandler(log_path, maxBytes=5*1024*1024, backupCount=1)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] - %(message)s'
+        ))
+        file_handler.setLevel(log_level)
+        app.logger.addHandler(file_handler)
+        app.logger.info(f"File logging enabled: {log_path}")
+    except Exception as e:
+        print(f"[Boot-Error] Failed to setup file logging: {e}")
+
     app.logger.warning("-------------------------------------")
     app.logger.warning(f"Flask application starting... (Log Level: {logging.getLevelName(log_level)})")
     app.logger.warning("-------------------------------------")

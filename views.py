@@ -4,6 +4,7 @@ from flask import (
 import datetime
 import sqlite3
 import logging
+import os
 from db import get_db, get_all_settings
 
 bp = Blueprint('views', __name__, url_prefix='')
@@ -54,6 +55,34 @@ def admin_update_user(user_id):
     conn.commit()
     flash(f'User {user_id} updated.', 'success')
     return redirect(url_for('views.admin_dashboard'))
+
+    conn.commit()
+    flash(f'User {user_id} updated.', 'success')
+    return redirect(url_for('views.admin_dashboard'))
+
+@bp.route('/admin/logs2') # Use new route to avoid potential conflicts/cache
+def admin_logs():
+    if not g.user or not g.user['is_admin']:
+        abort(403)
+        
+    log_path = os.path.join(current_app.instance_path, 'app.log')
+    log_content = ""
+    
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                # Read last 500 lines efficiently-ish
+                # For now just read last 50KB to prevent huge loads
+                stat = os.stat(log_path)
+                if stat.st_size > 50000:
+                    f.seek(stat.st_size - 50000)
+                log_content = f.read()
+        except Exception as e:
+            log_content = f"Error reading log file: {e}"
+    else:
+        log_content = "Log file not found (yet)."
+        
+    return render_template('admin_logs.html', log_content=log_content)
 
 @bp.route('/admin/settings', methods=['POST'])
 def admin_save_settings():
