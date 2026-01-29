@@ -205,6 +205,11 @@
                     <input type="number" name="free_channel_limit" value="{{ settings.free_channel_limit }}" min="1">
                 </div>
 
+                <div class="form-row">
+                    <label>Poller Interval (seconds)</label>
+                    <input type="number" name="poll_interval" value="{{ settings.poll_interval or '300' }}" min="60">
+                </div>
+
                 <h3 style="margin-top: 20px;">PayPal Configuration</h3>
                 <div class="form-row"><label>Client ID</label><input type="text" name="paypal_client_id"
                         value="{{ settings.paypal_client_id }}"></div>

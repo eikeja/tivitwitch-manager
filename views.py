@@ -101,7 +101,9 @@ def admin_save_settings():
         save('vod_count_per_channel', data.get('vod_count_per_channel', '5'))
         save('m3u_enabled', 'true' if data.get('m3u_enabled') else 'false')
         save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
+        save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
         save('free_channel_limit', data.get('free_channel_limit', '3'))
+        save('poll_interval', data.get('poll_interval', '300'))
         
         new_level = data.get('log_level', 'info')
         save('log_level', new_level)

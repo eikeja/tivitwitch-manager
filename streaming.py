@@ -396,7 +396,9 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     current_app.logger.info(f"[Play-Live-XC] Request for {login_name} (ID: {stream_id}). Mode: {live_mode}")
 
     hls_live_edge = get_setting('hls_live_edge', '10')      # Default INCREASED to 10 for stability
-    hls_segment_threads = get_setting('hls_segment_threads', '4')
+    # FORCE THREADS to 10
+    # hls_segment_threads = get_setting('hls_segment_threads', '4')
+    hls_segment_threads = 10
     ringbuffer_size = get_setting('ringbuffer_size', '33554432') # Default INCREASED to 32MB
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
     # FORCE DISABLE ADS to fix Discontinuity
@@ -459,7 +461,8 @@ def play_live_m3u(stream_id):
     current_app.logger.info(f"[Play-Live-M3U] Request for {login_name} (ID: {stream_id}). Mode: {live_mode}")
     
     hls_live_edge = get_setting('hls_live_edge', '10')      # Default INCREASED to 10
-    hls_segment_threads = get_setting('hls_segment_threads', '4')
+    # FORCE THREADS to 10
+    hls_segment_threads = 10
     ringbuffer_size = get_setting('ringbuffer_size', '33554432') # Default INCREASED to 32MB
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
     disable_ads = get_setting('twitch_disable_ads', 'true') == 'true' # Default ENABLED

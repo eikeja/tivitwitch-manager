@@ -77,6 +77,11 @@ def get_base_settings():
         settings['vod_count_per_channel'] = int(settings['vod_count_per_channel'])
     except ValueError:
         settings['vod_count_per_channel'] = 5
+        
+    try:
+        settings['poll_interval'] = int(settings.get('poll_interval', '300')) # Default 300s (5m)
+    except ValueError:
+        settings['poll_interval'] = 300
     
     return settings
 
@@ -255,8 +260,9 @@ def update_database():
             if settings['vod_enabled']:
                 process_vods(cursor, token, c_id, login_names, user_id_map, settings['vod_count_per_channel'])
                 
+                
             # Yield to other greenlets
-            gevent.sleep(0.1)
+            gevent.sleep(0.5) # Increased from 0.1s to reduce CPU load
 
         # 3. Garbage Collection
         # streams that are in live_streams but NOT in all_monitored_logins should be removed
@@ -301,6 +307,8 @@ def process_vods(cursor, token, client_id, login_names, user_id_map, vod_count):
 
         vod_category = f"{login_name.title()} VODs"
         
+        gevent.sleep(0.1) # Yield slightly for each user VODs processing
+        
         for vod in vods:
             thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
             duration_seconds = parse_duration(vod.get('duration', '0s'))
@@ -340,5 +348,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.critical(f"[Poller] Unhandled exception in main loop: {e}")
             
-        logging.info(f"Next poll run in {POLL_INTERVAL} seconds.")
-        gevent.sleep(POLL_INTERVAL)
+        poll_wait = settings.get('poll_interval', 300)
+        logging.info(f"Next poll run in {poll_wait} seconds.")
+        gevent.sleep(poll_wait)
