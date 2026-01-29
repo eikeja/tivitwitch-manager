@@ -88,16 +88,57 @@ def _get_vod_playlist_response(session, twitch_vod_id, stream_url):
     return Response('\n'.join(output_playlist), mimetype='application/vnd.apple.mpegurl')
 
 def generate_stream_data(stream_fd):
-    """(For Live-Proxy) Yields chunks of stream data."""
+    """(For Live-Proxy) Yields chunks of stream data with performance logging."""
     # This function runs outside the app context.
-    # Use print() instead of current_app.logger, as stdout is captured anyway.
     try:
+        chunk_size = 32768 # 32KB chunks
+        last_log_time = time.time()
+        total_bytes = 0
+        total_read_time = 0
+        total_yield_time = 0
+        chunks_count = 0
+        
+        print(f"[Live-Proxy] Diagnostics started. Chunk Size: {chunk_size}")
+
         while True:
-            data = stream_fd.read(4096)
+            # 1. Twitch Read
+            t_start = time.time()
+            data = stream_fd.read(chunk_size)
+            t_read_done = time.time()
+            
             if not data:
                 print("[Live-Proxy] Stream ended (no more data).")
                 break
+                
+            read_dur = t_read_done - t_start
+            
+            # 2. Client Write (Yield)
             yield data
+            t_yield_done = time.time()
+            yield_dur = t_yield_done - t_read_done
+            
+            # Update stats
+            total_bytes += len(data)
+            total_read_time += read_dur
+            total_yield_time += yield_dur
+            chunks_count += 1
+            
+            # 3. Log (Every 5s)
+            now = time.time()
+            if now - last_log_time >= 5:
+                elapsed = now - last_log_time
+                mb_s = (total_bytes / (1024*1024)) / elapsed
+                avg_read = (total_read_time / chunks_count) * 1000 if chunks_count else 0
+                avg_write = (total_yield_time / chunks_count) * 1000 if chunks_count else 0
+                
+                print(f"[Speed] Throughput: {mb_s:.2f} MB/s | Twitch Read (Avg): {avg_read:.1f}ms | Client Write (Avg): {avg_write:.1f}ms")
+                
+                last_log_time = now
+                total_bytes = 0
+                total_read_time = 0
+                total_yield_time = 0
+                chunks_count = 0
+
     except Exception as e:
         if "Connection reset by peer" not in str(e):
             print(f"[Live-Proxy] ERROR: Error during streaming: {e}")
@@ -366,10 +407,10 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
         # Keeping handlers is fine as long as level is ERROR.
 
     session = streamlink.Streamlink()
-    session.set_option("hls-live-edge", int(hls_live_edge))
-    session.set_option("hls-segment-threads", int(hls_segment_threads))
-    session.set_option("hls-playlist-reload-attempts", 3)
-    session.set_option("ringbuffer-size", int(ringbuffer_size))
+    session.set_option("hls-live-edge", 10)
+    session.set_option("hls-segment-threads", 4)
+    session.set_option("hls-playlist-reload-attempts", 5)
+    session.set_option("ringbuffer-size", 33554432)
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     session.set_option("twitch-disable-ads", disable_ads)
     if auth_token:
@@ -435,10 +476,10 @@ def play_live_m3u(stream_id):
         sl_logger.setLevel(logging.ERROR)
 
     session = streamlink.Streamlink()
-    session.set_option("hls-live-edge", int(hls_live_edge))
-    session.set_option("hls-segment-threads", int(hls_segment_threads))
-    session.set_option("hls-playlist-reload-attempts", 3)
-    session.set_option("ringbuffer-size", int(ringbuffer_size))
+    session.set_option("hls-live-edge", 10)
+    session.set_option("hls-segment-threads", 4)
+    session.set_option("hls-playlist-reload-attempts", 5)
+    session.set_option("ringbuffer-size", 33554432)
     session.set_option("http-header", "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     session.set_option("twitch-disable-ads", disable_ads)
     if auth_token:
