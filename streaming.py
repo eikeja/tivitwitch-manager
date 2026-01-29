@@ -100,7 +100,9 @@ def generate_stream_data(stream_fd):
         
         # Use root logger to ensure capture by FileHandler (since we are in thread/generator)
         logger = logging.getLogger("flask.app") 
-        logger.info(f"[Live-Proxy] Diagnostics started. Chunk Size: {chunk_size}")
+        msg_start = f"[Live-Proxy] Diagnostics started. Chunk Size: {chunk_size}"
+        logger.info(msg_start)
+        print(msg_start, flush=True) # Fallback
 
         while True:
             # 1. Twitch Read
@@ -136,7 +138,9 @@ def generate_stream_data(stream_fd):
                 avg_read = (total_read_time / chunks_count) * 1000 if chunks_count else 0
                 avg_write = (total_yield_time / chunks_count) * 1000 if chunks_count else 0
                 
-                logger.info(f"[Speed] Throughput: {mb_s:.2f} MB/s | Twitch Read (Avg): {avg_read:.1f}ms | Client Write (Avg): {avg_write:.1f}ms")
+                msg_speed = f"[Speed] Throughput: {mb_s:.2f} MB/s | Twitch Read (Avg): {avg_read:.1f}ms | Client Write (Avg): {avg_write:.1f}ms"
+                logger.info(msg_speed)
+                print(msg_speed, flush=True)
                 
                 last_log_time = now
                 total_bytes = 0
@@ -395,7 +399,9 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     hls_segment_threads = get_setting('hls_segment_threads', '4')
     ringbuffer_size = get_setting('ringbuffer_size', '33554432') # Default INCREASED to 32MB
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
-    disable_ads = get_setting('twitch_disable_ads', 'true') == 'true' # Default ENABLED to prevent discontinuities
+    # FORCE DISABLE ADS to fix Discontinuity
+    # disable_ads = get_setting('twitch_disable_ads', 'true') == 'true' 
+    disable_ads = True
 
     sl_logger = logging.getLogger("streamlink")
     # ... (Keep logging config) ...
@@ -421,7 +427,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
             current_app.logger.info(f"[Play-Live-XC] Sending 302 Redirect for {login_name} to: {streams['best'].url}")
             return redirect(streams["best"].url)
         else:
-            current_app.logger.info(f"[Play-Live-XC] Opening stream in Proxy-Mode for {login_name}.")
+            current_app.logger.info(f"[Play-Live-XC] Opening stream in Proxy-Mode for {login_name}. (Ads Disabled: {disable_ads}, Buffer: {ringbuffer_size}, Edge: {hls_live_edge})")
             stream_fd = streams["best"].open()
             current_app.logger.info("[Live-Proxy] Stream generator starting.")
             return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
@@ -481,7 +487,7 @@ def play_live_m3u(stream_id):
             current_app.logger.info(f"[Play-Live-M3U] Sending 302 Redirect for {login_name}.")
             return redirect(streams["best"].url)
         else:
-            current_app.logger.info(f"[Play-Live-M3U] Opening stream in Proxy-Mode for {login_name}.")
+            current_app.logger.info(f"[Play-Live-M3U] Opening stream in Proxy-Mode for {login_name}. (Ads Disabled: {disable_ads})")
             stream_fd = streams["best"].open()
             current_app.logger.info("[Live-Proxy] Stream generator starting.")
             return Response(generate_stream_data(stream_fd), mimetype='video/mp2t')
