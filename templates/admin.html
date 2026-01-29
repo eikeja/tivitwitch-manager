@@ -273,18 +273,18 @@
                         View System Logs</a>
                 </div>
 
-                <!-- 
                 <div class="form-row">
                     <div>
                         <label>Disable Twitch Ads (Filter Segments)</label>
-                        <div style="font-size: 0.85em; color: var(--text-secondary);">If enabled, ads are filtered out (may cause freeze). Uncheck to allow ads & prevent freeze.</div>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">If enabled, ads are filtered out
+                            (prevents 'Discontinuity' errors).</div>
                     </div>
                     <label class="switch">
-                        <input type="checkbox" name="twitch_disable_ads" {% if settings.twitch_disable_ads == 'true' %}checked{% endif %}>
+                        <input type="checkbox" name="twitch_disable_ads" {% if settings.twitch_disable_ads=='true'
+                            %}checked{% endif %}>
                         <span class="slider"></span>
                     </label>
-                </div> 
-                -->
+                </div>
 
                 <div class="form-row">
                     <div>

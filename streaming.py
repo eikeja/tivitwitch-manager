@@ -108,6 +108,9 @@ def generate_stream_data(stream_fd):
             data = stream_fd.read(chunk_size)
             t_read_done = time.time()
             
+            if chunks_count == 0:
+                 logger.info(f"[Live-Proxy] First chunk received ({len(data)} bytes) in {(t_read_done - t_start)*1000:.1f}ms.")
+
             if not data:
                 logger.info("[Live-Proxy] Stream ended (no more data).")
                 break
@@ -125,9 +128,9 @@ def generate_stream_data(stream_fd):
             total_yield_time += yield_dur
             chunks_count += 1
             
-            # 3. Log (Every 5s)
+            # 3. Log (Every 2s)
             now = time.time()
-            if now - last_log_time >= 5:
+            if now - last_log_time >= 2:
                 elapsed = now - last_log_time
                 mb_s = (total_bytes / (1024*1024)) / elapsed
                 avg_read = (total_read_time / chunks_count) * 1000 if chunks_count else 0
@@ -392,7 +395,7 @@ def play_live_stream_xc(username, password, stream_id, ext=None):
     hls_segment_threads = get_setting('hls_segment_threads', '4')
     ringbuffer_size = get_setting('ringbuffer_size', '33554432') # Default INCREASED to 32MB
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
-    disable_ads = get_setting('twitch_disable_ads', 'false') == 'true'
+    disable_ads = get_setting('twitch_disable_ads', 'true') == 'true' # Default ENABLED to prevent discontinuities
 
     sl_logger = logging.getLogger("streamlink")
     # ... (Keep logging config) ...
@@ -453,7 +456,7 @@ def play_live_m3u(stream_id):
     hls_segment_threads = get_setting('hls_segment_threads', '4')
     ringbuffer_size = get_setting('ringbuffer_size', '33554432') # Default INCREASED to 32MB
     debug_logging = get_setting('streamlink_log_enabled', 'false') == 'true'
-    disable_ads = get_setting('twitch_disable_ads', 'false') == 'true'
+    disable_ads = get_setting('twitch_disable_ads', 'true') == 'true' # Default ENABLED
 
     sl_logger = logging.getLogger("streamlink")
     # ... (Logging config skipped for brevity in search, assuming it matches above structure) ...
