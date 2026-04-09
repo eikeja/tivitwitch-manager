@@ -169,6 +169,7 @@ def check_web_ui_auth():
         '/player_api.php',     
         '/live/',
         '/movie/',
+        '/series/',
         '/vod-segment-proxy/',
         '/playlist.m3u',
         '/play_live_m3u/',
