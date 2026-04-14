@@ -254,94 +254,42 @@ def player_api():
             })
         return jsonify(live_streams_json)
         
-    # VOD features as Movies are deprecated in favor of Series
     if action == 'get_vod_categories':
-        current_app.logger.info(f"[XC-API] Delivering empty VOD categories for user '{username}'.")
-        return jsonify([])
-        
-    if action == 'get_vod_streams':
-        current_app.logger.info(f"[XC-API] Delivering empty VOD streams for user '{username}'.")
-        return jsonify([])
-
-    if action == 'get_vod_info':
-        return jsonify({})
-
-    # --- SERIES API FOR VODS ---
-    SERIES_CATEGORY_ID = "2"
-    
-    if action == 'get_series_categories':
-        current_app.logger.info(f"[XC-API] Delivering series categories for user '{username}'.")
-        return jsonify([{
-            "category_id": SERIES_CATEGORY_ID, 
-            "category_name": "TiviTwitch Serien", 
-            "parent_id": 0
-        }])
-
-    if action == 'get_series':
-        category_id_filter = request.args.get('category_id')
-        if category_id_filter and category_id_filter != SERIES_CATEGORY_ID and category_id_filter != '*':
-            return jsonify([])
-
-        # Retrieve all unique channels the user tracks and has VODs for
         query = '''
-            SELECT DISTINCT c.login_name, MAX(v.created_at) as last_updated
+            SELECT DISTINCT c.login_name
             FROM channels c
             JOIN vod_streams v ON c.login_name = v.channel_login
             WHERE c.user_id = ?
-            GROUP BY c.login_name
         '''
-        series_rows = db.execute(query, (user_id,)).fetchall() if user_id else []
-        
-        series_json = []
-        for row in series_rows:
-            series_id = zlib.crc32(row['login_name'].encode('utf-8')) & 0x7FFFFFFF
-            series_json.append({
-                "num": series_id,
-                "name": row['login_name'].title(),
-                "series_id": series_id,
-                "cover": "", 
-                "plot": f"Twitch VODs for {row['login_name'].title()}",
-                "cast": row['login_name'].title(),
-                "director": row['login_name'].title(),
-                "genre": "Twitch",
-                "releaseDate": "",
-                "last_modified": row['last_updated'],
-                "rating": "5.0",
-                "rating_5based": 5,
-                "backdrop_path": [],
-                "youtube_trailer": "",
-                "episode_run_time": "0",
-                "category_id": SERIES_CATEGORY_ID
+        vod_categories = db.execute(query, (user_id,)).fetchall() if user_id else []
+        json_resp = []
+        for row in vod_categories:
+            cat_id = str(zlib.crc32(row['login_name'].encode('utf-8')) & 0x7FFFFFFF)
+            json_resp.append({
+                "category_id": cat_id,
+                "category_name": row['login_name'].title(),
+                "parent_id": 0
             })
-            
-        current_app.logger.info(f"[XC-API] Delivering {len(series_json)} Series for user '{username}'.")
-        return jsonify(series_json)
-
-    if action == 'get_series_info':
-        series_id_str = request.args.get('series_id', '0')
-        series_id = int(series_id_str) if series_id_str.isdigit() else 0
+        current_app.logger.info(f"[XC-API] Delivering {len(json_resp)} VOD categories for user '{username}'.")
+        return jsonify(json_resp)
         
-        channels = db.execute('SELECT login_name FROM channels WHERE user_id = ?', (user_id,)).fetchall() if user_id else []
+    if action == 'get_vod_streams':
+        category_id_filter = request.args.get('category_id')
+        query = '''
+            SELECT v.*, c.login_name
+            FROM vod_streams v
+            JOIN channels c ON v.channel_login = c.login_name
+            WHERE c.user_id = ?
+            ORDER BY v.created_at DESC
+        '''
+        vods = db.execute(query, (user_id,)).fetchall() if user_id else []
+        json_resp = []
         
-        channel_login = None
-        for c in channels:
-            if (zlib.crc32(c['login_name'].encode('utf-8')) & 0x7FFFFFFF) == series_id:
-                channel_login = c['login_name']
-                break
+        for vod in vods:
+            cat_id = str(zlib.crc32(vod['login_name'].encode('utf-8')) & 0x7FFFFFFF)
+            if category_id_filter and category_id_filter != '*' and str(category_id_filter) != cat_id:
+                continue
                 
-        if not channel_login:
-            current_app.logger.warning(f"[XC-API] Series info not found for ID: {series_id}")
-            return jsonify({})
-            
-        # Get VODs for this channel
-        vod_limit = int(get_setting('vod_count_per_channel', '5'))
-        query = 'SELECT * FROM vod_streams WHERE channel_login = ? ORDER BY created_at DESC LIMIT ?'
-        vods = db.execute(query, (channel_login, vod_limit)).fetchall()
-        
-        episodes_list = []
-        episode_num = 1
-        
-        for vod in reversed(vods): # Oldest first, so episode 1 is the oldest kept VOD
             formatted_date = ""
             try:
                 dt = datetime.strptime(vod['created_at'], "%Y-%m-%dT%H:%M:%SZ")
@@ -351,65 +299,63 @@ def player_api():
                 
             ep_title = f"[{formatted_date}] {vod['title']}"
             
-            # Format duration strictly
-            duration_str = "00:00:00"
-            if vod['duration']:
-                duration_str = str(timedelta(seconds=int(vod['duration'])))
-            
-            episodes_list.append({
-                "id": vod['id'],
-                "episode_num": episode_num,
-                "title": ep_title,
-                "container_extension": "mp4",
-                "info": {
-                    "movie_image": vod['thumbnail_url'],
-                    "plot": vod['title'],
-                    "duration_secs": vod['duration'],
-                    "duration": duration_str
-                },
-                "custom_sid": "",
+            json_resp.append({
+                "num": vod['id'],
+                "name": ep_title,
+                "stream_type": "movie",
+                "stream_id": vod['vod_id'],
+                "stream_icon": vod['thumbnail_url'],
+                "rating": "5",
+                "rating_5based": 5,
                 "added": str(int(time.time())),
-                "season": 1,
+                "category_id": cat_id,
+                "container_extension": "mp4",
+                "custom_sid": "",
                 "direct_source": ""
             })
-            episode_num += 1
             
-        info = {
-            "name": channel_login.title(),
-            "cover": vods[0]['thumbnail_url'] if vods else "",
-            "plot": f"Twitch VODs for {channel_login.title()}",
-            "cast": channel_login.title(),
-            "director": channel_login.title(),
-            "genre": "Twitch",
-            "releaseDate": "",
-            "last_modified": "",
-            "rating": "5.0",
-            "rating_5based": 5,
-            "backdrop_path": [],
-            "youtube_trailer": "",
-            "episode_run_time": "0",
-            "category_id": SERIES_CATEGORY_ID
-        }
+        current_app.logger.info(f"[XC-API] Delivering {len(json_resp)} VOD streams for user '{username}'.")
+        return jsonify(json_resp)
+
+    if action == 'get_vod_info':
+        vod_id = request.args.get('vod_id')
+        if not vod_id: return jsonify({})
+        row = db.execute("SELECT * FROM vod_streams WHERE vod_id = ? OR id = ?", (vod_id, vod_id)).fetchone()
+        if not row: return jsonify({})
         
-        response_data = {
-            "seasons": [{
-                "season_number": 1,
-                "air_date": "",
-                "episode_count": len(episodes_list),
-                "id": 1,
-                "name": "Season 1",
-                "overview": "",
-                "poster_path": info["cover"],
-                "vote_average": 0
-            }],
-            "info": info,
-            "episodes": {
-                "1": episodes_list
+        duration_str = "00:00:00"
+        if row['duration']:
+            duration_str = str(timedelta(seconds=int(row['duration'])))
+            
+        return jsonify({
+            "info": {
+                "movie_image": row['thumbnail_url'],
+                "plot": row['title'],
+                "cast": row['channel_login'].title(),
+                "director": row['channel_login'].title(),
+                "genre": "Twitch VOD",
+                "releaseDate": row['created_at'][:10],
+                "duration_secs": row['duration'],
+                "duration": duration_str
+            },
+            "movie_data": {
+                "stream_id": row['vod_id'],
+                "name": row['title'],
+                "added": str(int(time.time())),
+                "category_id": str(zlib.crc32(row['channel_login'].encode('utf-8')) & 0x7FFFFFFF),
+                "container_extension": "mp4"
             }
-        }
-        
-        current_app.logger.info(f"[XC-API] Delivering Series info with {len(episodes_list)} episodes for {channel_login}.")
-        return jsonify(response_data) 
+        })
+
+    # --- SERIES API FOR VODS (REVERTED TO EMPTY) ---
+    if action == 'get_series_categories':
+        return jsonify([])
+
+    if action == 'get_series':
+        return jsonify([])
+
+    if action == 'get_series_info':
+        return jsonify({})
 
     current_app.logger.error(f"[XC-API] Unknown Action '{action}' from user '{username}'.")
     return jsonify({"error": "Unknown action"})
@@ -548,6 +494,8 @@ def play_live_m3u(stream_id):
         
 # --- VOD & SERIES STREAM ENDPOINTS (Proxy is mandatory here) ---
 
+@bp.route('/movie/<username>/<password>/<string:stream_id>') 
+@bp.route('/movie/<username>/<password>/<string:stream_id>.<ext>')
 @bp.route('/series/<username>/<password>/<string:stream_id>') 
 @bp.route('/series/<username>/<password>/<string:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):
