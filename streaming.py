@@ -548,8 +548,6 @@ def play_live_m3u(stream_id):
         
 # --- VOD & SERIES STREAM ENDPOINTS (Proxy is mandatory here) ---
 
-@bp.route('/movie/<username>/<password>/<string:stream_id>') 
-@bp.route('/movie/<username>/<password>/<string:stream_id>.<ext>')
 @bp.route('/series/<username>/<password>/<string:stream_id>') 
 @bp.route('/series/<username>/<password>/<string:stream_id>.<ext>')
 def play_vod_stream_xc(username, password, stream_id, ext=None):

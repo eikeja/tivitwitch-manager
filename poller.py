@@ -148,7 +148,8 @@ def get_channel_vods(token, client_id, user_id, vod_count):
         headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
         params = {
             'user_id': user_id,
-            'type': 'archive', 
+            'type': 'all', 
+            'sort': 'time',
             'first': vod_count
         }
         
@@ -348,6 +349,11 @@ if __name__ == "__main__":
         except Exception as e:
             logging.critical(f"[Poller] Unhandled exception in main loop: {e}")
             
-        poll_wait = settings.get('poll_interval', 300)
+        try:
+            settings = get_base_settings()
+            poll_wait = settings.get('poll_interval', 300)
+        except Exception:
+            poll_wait = 300
+            
         logging.info(f"Next poll run in {poll_wait} seconds.")
         gevent.sleep(poll_wait)
