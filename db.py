@@ -2,7 +2,15 @@ import sqlite3
 from werkzeug.security import check_password_hash
 from flask import current_app, g
 
-DB_PATH = '/data/channels.db'
+import os
+
+# Ensure instance folder exists
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTANCE_FOLDER = os.path.join(BASE_DIR, 'instance')
+if not os.path.exists(INSTANCE_FOLDER):
+    os.makedirs(INSTANCE_FOLDER)
+
+DB_PATH = os.path.join(INSTANCE_FOLDER, 'channels.db')
 
 def get_db():
     """Opens a new database connection if there is none yet for the
@@ -11,6 +19,15 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        
+        # Simple Migration Check (Auto-add auth_token column)
+        try:
+            g.db.execute("SELECT auth_token FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            current_app.logger.info("[DB] Migrating: Adding 'auth_token' column to users table.")
+            g.db.execute("ALTER TABLE users ADD COLUMN auth_token TEXT")
+            g.db.commit()
+            
     return g.db
 
 def close_db(e=None):
@@ -26,15 +43,24 @@ def init_app(app):
     """
     app.teardown_appcontext(close_db)
 
-def get_password_hash():
-    """Fetches only the master password hash."""
+def get_user_by_username(username):
+    """Fetches a user by username."""
     try:
         db = get_db()
-        row = db.execute("SELECT value FROM settings WHERE key = 'password_hash'").fetchone()
-        return row['value'] if row else None
+        row = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        return row
     except Exception as e:
-        # Logger might not be available here if error happens early
-        print(f"[DB-Helper-ERROR] Error fetching password hash: {e}")
+        current_app.logger.error(f"[DB-Helper] Error fetching user '{username}': {e}")
+        return None
+
+def get_user_by_token(token):
+    """Fetches a user by their API token."""
+    try:
+        db = get_db()
+        row = db.execute("SELECT * FROM users WHERE api_token = ?", (token,)).fetchone()
+        return row
+    except Exception as e:
+        current_app.logger.error(f"[DB-Helper] Error fetching user by token: {e}")
         return None
 
 def get_setting(key, default=None):
@@ -61,17 +87,16 @@ def get_all_settings():
         return {}
 
 def check_xc_auth(username, password):
-    """Checks TiviMate credentials against the master password."""
-    if not password:
-        current_app.logger.warning("[Auth] Check_xc_auth failed: No password provided.")
+    """Checks credentials against the users table."""
+    if not username or not password:
         return False
         
-    pw_hash = get_password_hash()
-    if not pw_hash: 
-        current_app.logger.error("[Auth] Check_xc_auth failed: No master password set in DB.")
+    user = get_user_by_username(username)
+    if not user:
+        current_app.logger.warning(f"[Auth] Check_xc_auth failed: User '{username}' not found.")
         return False
-        
-    is_valid = check_password_hash(pw_hash, password)
+
+    is_valid = check_password_hash(user['password_hash'], password)
     if not is_valid:
         current_app.logger.warning(f"[Auth] Check_xc_auth failed: Invalid password for user '{username}'.")
         

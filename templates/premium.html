@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Upgrade to Premium</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            background-color: var(--bg-dark-primary, #1a1a1a);
+            color: var(--text-primary, #ffffff);
+            font-family: sans-serif;
+        }
+
+        .pricing-box {
+            text-align: center;
+            border: 2px solid var(--accent-purple, #9147ff);
+            padding: 40px;
+            border-radius: 10px;
+            background: var(--bg-dark-secondary, #262626);
+            max-width: 500px;
+            margin: 50px auto;
+            color: #ffffff;
+        }
+
+        .price {
+            font-size: 2.5em;
+            color: var(--accent-purple, #9147ff);
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .subtitle {
+            color: #ccc;
+        }
+
+        .features {
+            list-style: none;
+            padding: 0;
+            text-align: left;
+            margin: 30px 0;
+            color: #eee;
+        }
+
+        .features li {
+            margin: 10px 0;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+        }
+
+        .features li::before {
+            content: "✓";
+            color: #00ff00;
+            margin-right: 15px;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .back-link {
+            color: var(--accent-purple, #9147ff);
+            text-decoration: none;
+            font-size: 1.1em;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .back-link:hover {
+            color: #bf94ff;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header" style="text-align: center; padding-top: 20px;">
+            <a href="{{ url_for('views.index') }}" class="back-link">← Back to Dashboard</a>
+        </div>
+
+        <div class="pricing-box">
+            <h1>Upgrade to Premium</h1>
+            <p class="subtitle">Get the most out of TiviTwitch Manager</p>
+
+            <div class="price">€4.99 <span style="font-size: 0.4em;">/ month</span></div>
+
+            <ul class="features">
+                <li>Unlimited Channels (Free limit: {{ settings.free_channel_limit }})</li>
+                <li>Priority Support</li>
+                <li>Support the developer</li>
+            </ul>
+
+            <!-- PayPal Button Container -->
+            <div id="paypal-button-container"></div>
+
+            {% if not settings.paypal_client_id %}
+            <p style="color: red; margin-top: 20px;">Error: PayPal Client ID not configured by Admin.</p>
+            {% endif %}
+
+            <p style="margin-top: 20px; font-size: 0.8em; color: #777;">Secure payment processed by PayPal.</p>
+        </div>
+
+        <!-- Voucher Redemption -->
+        <div class="pricing-box" style="margin-top: 20px; padding: 20px;">
+            <h3>Have a Voucher?</h3>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:15px;">
+                <input type="text" id="voucher-code" placeholder="Enter Code" style="padding:8px;">
+                <button id="redeem-btn" class="btn-primary">Redeem</button>
+            </div>
+            <p id="redeem-msg" style="margin-top:10px; font-weight:bold;"></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('redeem-btn').addEventListener('click', async () => {
+            const code = document.getElementById('voucher-code').value;
+            const msg = document.getElementById('redeem-msg');
+            if (!code) return;
+
+            msg.innerText = "Checking...";
+            msg.style.color = "white";
+
+            try {
+                const res = await fetch("{{ url_for('views.redeem_coupon') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    msg.style.color = "#00ff00";
+                    msg.innerText = "Success! Reloading...";
+                    setTimeout(() => window.location.href = "{{ url_for('views.index') }}", 1500);
+                } else {
+                    msg.style.color = "red";
+                    msg.innerText = data.error || "Error redeeming code.";
+                }
+            } catch (e) {
+                msg.style.color = "red";
+                msg.innerText = "Network Error";
+            }
+        });
+    </script>
+
+    <!-- PayPal SDK -->
+    {% if settings.paypal_client_id %}
+    <script src="https://www.paypal.com/sdk/js?client-id={{ settings.paypal_client_id }}&vault=true&intent=subscription"
+        data-sdk-integration-source="button-factory"></script>
+    <script>
+        const PLAN_ID = "{{ settings.paypal_plan_id }}"; // Admin must configure this!
+        const USER_ID = "{{ g.user['id'] }}";
+
+        if (PLAN_ID) {
+            paypal.Buttons({
+                style: {
+                    shape: 'rect',
+                    color: 'gold',
+                    layout: 'vertical',
+                    label: 'subscribe'
+                },
+                createSubscription: function (data, actions) {
+                    return actions.subscription.create({
+                        'plan_id': PLAN_ID,
+                        'custom_id': USER_ID // Pass user ID to webhook
+                    });
+                },
+                onApprove: function (data, actions) {
+                    alert('Subscription successful! You will be upgraded shortly.');
+                    window.location.href = "{{ url_for('views.index') }}";
+                }
+            }).render('#paypal-button-container');
+        } else {
+            document.getElementById('paypal-button-container').innerHTML = '<p style="color:orange">PayPal Plan ID missing in settings.</p>';
+        }
+    </script>
+    {% endif %}
+</body>
+
+</html>
