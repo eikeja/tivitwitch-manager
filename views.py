@@ -15,6 +15,16 @@ def index():
     """Serves the main web interface (index.html)."""
     return render_template('index.html')
 
+@bp.route('/health')
+def health():
+    """Lightweight liveness/readiness check for orchestrators (e.g. Coolify)."""
+    try:
+        get_db().execute("SELECT 1")
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        current_app.logger.error(f"[Health] DB check failed: {e}")
+        return jsonify({"status": "error", "detail": str(e)}), 503
+
 @bp.route('/premium')
 def premium_page():
     conn = get_db()

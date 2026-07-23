@@ -68,8 +68,15 @@ def create_app():
     app.logger.warning("-------------------------------------")
 
     # --- Configuration ---
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
-    
+    secret_key = os.environ.get('SECRET_KEY')
+    if not secret_key:
+        secret_key = 'default-dev-key-please-change'
+        app.logger.warning(
+            "[Config] SECRET_KEY is not set! Using an insecure default. "
+            "Set the SECRET_KEY environment variable in production (e.g. in Coolify)."
+        )
+    app.config['SECRET_KEY'] = secret_key
+
     app.logger.info("Gevent monkey-patching applied.")
 
     # --- Register Blueprints ---

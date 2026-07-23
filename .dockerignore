@@ -1,0 +1,9 @@
+.git
+.gitignore
+.gitattributes
+README.md
+instance/*.db
+instance/*.log
+__pycache__
+*.pyc
+.env

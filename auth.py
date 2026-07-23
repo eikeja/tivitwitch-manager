@@ -161,6 +161,7 @@ def check_web_ui_auth():
     
     # Public paths that do not require Web UI auth
     public_paths = [
+        '/health',
         '/static/',
         '/login',
         '/register',
