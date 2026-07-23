@@ -58,6 +58,19 @@ This is the easiest way to deploy the service.
     HOST_URL="http://192.168.1.100:8998" docker-compose up -d
     ```
 
+## How to Install (using Coolify)
+
+1.  In Coolify, create a new **Application** (or **Resource** -> **Docker Compose**) and point it at this Git repository/branch. Both the `Dockerfile` and `docker-compose.yml` in this repo work with Coolify.
+2.  Set these environment variables in the Coolify UI:
+    * `HOST_URL` — the public domain Coolify will give this app, **including the scheme, without a port**, e.g. `https://tivitwitch.example.com` (Coolify terminates TLS and proxies to the container's port 8000 internally).
+    * `SECRET_KEY` — a random secret (e.g. generate one with `python3 -c "import secrets; print(secrets.token_hex(32))"`). Without this, a fixed, insecure default is used.
+3.  **Persistent storage:** make sure `/app/instance` is backed by a persistent volume, so the SQLite database and settings survive redeploys.
+    * If you deploy via the included `docker-compose.yml`, the named volume `tivitwitch_data` already handles this.
+    * If you instead use Coolify's plain "Dockerfile" application type, add a persistent storage mapping for `/app/instance` manually in the Coolify UI.
+4.  Leave replicas at **1**. The app uses a single-file SQLite database; running multiple instances against the same database will cause "database is locked" errors.
+5.  Coolify can use the built-in `/health` endpoint (also wired up as a Docker `HEALTHCHECK`) to detect a successful deployment.
+6.  Deploy. On first boot the container runs `init_db.py` to create the database if it doesn't exist yet, then starts Nginx, Gunicorn, and the poller via `supervisord`.
+
 ## Configuration & Player Setup
 
 Once the container is running, all configuration is done in the Web UI.

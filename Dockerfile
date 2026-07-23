@@ -7,6 +7,7 @@ RUN apt-get update && \
     streamlink \
     supervisor \
     nginx \
+    curl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- App Setup ---
@@ -23,9 +24,13 @@ COPY . .
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # --- Volumes & Ports ---
-VOLUME /data
+VOLUME /app/instance
 # Nginx listens on this port inside the container
 EXPOSE 8000
+
+# --- Healthcheck (used by Docker/Coolify to detect a working deployment) ---
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f http://127.0.0.1:8000/health || exit 1
 
 # --- Entrypoint ---
 COPY entrypoint.sh .

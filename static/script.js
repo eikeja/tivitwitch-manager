@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const vodEnabled = document.getElementById('setting-vod-enabled');
     const clientId = document.getElementById('setting-client-id');
     const clientSecret = document.getElementById('setting-client-secret');
+    const authToken = document.getElementById('setting-auth-token'); // New
     const vodCount = document.getElementById('setting-vod-count');
     const saveBtn = document.getElementById('save-settings-btn');
     const settingsStatus = document.getElementById('settings-status');
@@ -34,20 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const host = window.location.host;
         const protocol = window.location.protocol;
         const baseUrl = `${protocol}//${host}`;
+        const apiToken = document.body.dataset.apiToken;
 
         const serverUrlElement = document.getElementById('server-url-display');
         if (serverUrlElement) {
-            serverUrlElement.value = baseUrl;
+            serverUrlElement.value = `${baseUrl}`;
         }
 
         const m3uUrlElement = document.getElementById('m3u-url-display');
         if (m3uUrlElement) {
-            m3uUrlElement.value = `${baseUrl}/playlist.m3u?password=YOUR_PASSWORD_HERE`;
+            m3uUrlElement.value = apiToken ? `${baseUrl}/playlist.m3u?token=${apiToken}` : 'Error: No Token Found';
         }
 
         const m3uEpgUrlElement = document.getElementById('m3u-epg-url-display');
         if (m3uEpgUrlElement) {
-            m3uEpgUrlElement.value = `${baseUrl}/epg.xml?password=YOUR_PASSWORD_HERE`;
+            m3uEpgUrlElement.value = apiToken ? `${baseUrl}/epg.xml?token=${apiToken}` : 'Error: No Token Found';
         }
     }
 
@@ -100,6 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (liveStreamMode) liveStreamMode.value = settings.live_stream_mode || 'proxy';
             if (vodEnabled) vodEnabled.checked = settings.vod_enabled === 'true';
             if (clientId) clientId.value = settings.twitch_client_id || '';
+            if (clientSecret) clientSecret.value = settings.twitch_client_secret || '';
+            if (authToken) authToken.value = settings.twitch_auth_token || '';
             if (vodCount) vodCount.value = settings.vod_count_per_channel || '5';
 
             if (m3uEnabled && m3uInfoBox) {
@@ -217,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     vod_enabled: vodEnabled ? vodEnabled.checked : false,
                     twitch_client_id: clientId ? clientId.value : '',
                     twitch_client_secret: clientSecret ? clientSecret.value : '',
+                    twitch_auth_token: authToken ? authToken.value : '',
                     vod_count_per_channel: vodCount ? vodCount.value : '5',
                     m3u_enabled: m3uEnabled ? m3uEnabled.checked : false
                 };
@@ -282,13 +287,169 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // --- 4. Erst jetzt die Daten laden ---
+    // --- 4. Credentials Logic ---
+    const credentialsModal = document.getElementById('credentials-modal');
+    const credentialsForm = document.getElementById('credentials-form');
+    const credError = document.getElementById('credentials-error');
+    const modalHowtoLink = document.getElementById('modal-howto-link');
+
+    if (credentialsForm) {
+        credentialsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cid = document.getElementById('modal-client-id').value.trim();
+            const csecret = document.getElementById('modal-client-secret').value.trim();
+
+            if (!cid || !csecret) {
+                if (credError) credError.textContent = "Both Client ID and Secret are required.";
+                return;
+            }
+
+            try {
+                if (credError) { credError.textContent = "Saving..."; credError.style.color = "#333"; }
+
+                // Reuse the settings API to save
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        twitch_client_id: cid,
+                        twitch_client_secret: csecret
+                        // other settings are not sent, so they remain unchanged (backend handles this?)
+                        // actually backend expects full object usually, but let's check view.py
+                        // View.py implementation handles partial updates gracefully for ID/Secret logic we added?
+                        // Actually our view logic rewrites all settings. We should send current values if possible, 
+                        // OR update view to handle partials. 
+                        // Let's rely on the fact that we loaded settings before? 
+                        // No, if we force modal before loadSettings completes?
+                        // Safest: just send these two. View logic:
+                        // "save('vod_enabled', ...)" -> if keys missing in data, .get() returns default/None?
+                        // Wait, view.py does: data.get('vod_enabled', 'false'). 
+                        // If we don't send it, it defaults to false! CAREFUL.
+                        // We must read current settings first OR change view.py.
+                        // Let's change this to merge with current known settings.
+                    }),
+                    credentials: 'same-origin'
+                });
+
+                // WAIT! sending only ID/Secret will RESET other settings to defaults in current view.py implementation.
+                // We need to fetch settings first.
+            } catch (error) {
+                // ...
+            }
+        });
+    }
+
+    // --- REVISED LOGIC: Fetch settings, check keys, show modal if needed ---
+
+    async function checkAndEnforceCredentials() {
+        try {
+            const response = await fetch('/api/settings', { credentials: 'same-origin' });
+            if (!response.ok) return; // Login redirect handles itself
+            const settings = await response.json();
+
+            // Populate main settings form too
+            if (logLevel) logLevel.value = settings.log_level || 'info';
+            if (liveStreamMode) liveStreamMode.value = settings.live_stream_mode || 'proxy';
+            if (vodEnabled) vodEnabled.checked = settings.vod_enabled === 'true';
+            if (clientId) clientId.value = settings.twitch_client_id || '';
+            if (clientSecret) clientSecret.value = settings.twitch_client_secret || '';
+            if (authToken) authToken.value = settings.twitch_auth_token || '';
+            if (vodCount) vodCount.value = settings.vod_count_per_channel || '5';
+            if (m3uEnabled && m3uInfoBox) {
+                m3uEnabled.checked = settings.m3u_enabled === 'true';
+                m3uInfoBox.style.display = m3uEnabled.checked ? 'block' : 'none';
+            }
+
+            // CHECK: Is Client ID set?
+            if (!settings.twitch_client_id && credentialsModal) {
+                credentialsModal.style.display = 'block';
+            } else if (credentialsModal) {
+                credentialsModal.style.display = 'none';
+            }
+
+            return settings; // Return for use in save (to avoid overwriting defaults)
+
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // Handle Modal Save (Safe Version)
+    if (credentialsForm) {
+        // Remove old listener if any (not really possible here but for clarity)
+        credentialsForm.replaceWith(credentialsForm.cloneNode(true));
+
+        // Re-select fresh element
+        const newForm = document.getElementById('credentials-form');
+        newForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cid = document.getElementById('modal-client-id').value.trim();
+            const csecret = document.getElementById('modal-client-secret').value.trim();
+            const errorBox = document.getElementById('credentials-error');
+
+            if (!cid || !csecret) {
+                errorBox.textContent = "Both fields are required.";
+                return;
+            }
+
+            errorBox.textContent = "Saving...";
+
+            try {
+                // get current settings to merge
+                const responseGet = await fetch('/api/settings', { credentials: 'same-origin' });
+                const currentSettings = await responseGet.json();
+
+                const data = {
+                    ...currentSettings, // Merge existing
+                    twitch_client_id: cid,
+                    twitch_client_secret: csecret
+                };
+
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) throw new Error("Failed to save.");
+
+                // Success
+                document.getElementById('credentials-modal').style.display = 'none';
+                loadSettings(); // Reload UI
+
+            } catch (err) {
+                errorBox.textContent = "Error saving credentials: " + err.message;
+            }
+        });
+    }
+
+    // Modal 'How To' Toggle
+    const toggleHowtoBtn = document.getElementById('toggle-howto-btn');
+    const howtoBox = document.getElementById('credentials-howto-box');
+
+    if (toggleHowtoBtn && howtoBox) {
+        toggleHowtoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isHidden = howtoBox.style.display === 'none';
+            howtoBox.style.display = isHidden ? 'block' : 'none';
+            toggleHowtoBtn.textContent = isHidden ? 'Hide Instructions ▲' : 'How? ▼';
+        });
+    }
+
+    // Skip Button
+    const skipBtn = document.getElementById('skip-credentials-btn');
+    if (skipBtn && credentialsModal) {
+        skipBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            credentialsModal.style.display = 'none';
+        });
+    }
+
+    // Init
     setDynamicUrls();
-    if (channelList) {
-        fetchChannels();
-    }
-    if (settingsForm) {
-        loadSettings();
-    }
+    if (channelList) fetchChannels();
+    // Replaces the old loadSettings call
+    checkAndEnforceCredentials();
 
 });

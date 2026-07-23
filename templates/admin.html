@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - TiviTwitch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-section {
+            margin-top: 30px;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .badge-premium {
+            background: #ffd700;
+            color: #000;
+        }
+
+        .badge-admin {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .badge-free {
+            background: #ddd;
+            color: #333;
+        }
+
+        .actions form {
+            display: inline;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Admin Dashboard</h1>
+            <a href="{{ url_for('views.index') }}">Back to Main</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <p class="flash-{{ category }}">{{ message }}</p>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab-link active" onclick="openTab(event, 'tab-users')">User Management</button>
+            <button class="tab-link" onclick="openTab(event, 'tab-vouchers')">Vouchers</button>
+            <button class="tab-link" onclick="openTab(event, 'tab-settings')">General Settings</button>
+            <button class="tab-link" onclick="openTab(event, 'tab-advanced')">Advanced Settings</button>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="tab-users" class="tab-content active admin-section" style="margin-top:0;">
+            <h2>User Management</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Tier</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td>{{ u.username }}</td>
+                        <td>{{ u.email or '-' }}</td>
+                        <td><span class="badge badge-{{ u.subscription_tier }}">{{ u.subscription_tier|title }}</span>
+                        </td>
+                        <td>{% if u.is_admin %}<span class="badge badge-admin">Admin</span>{% else %}User{% endif %}
+                        </td>
+                        <td class="actions">
+
+                            {% if u.id != g.user['id'] %}
+                            <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}">
+                                <input type="hidden" name="action"
+                                    value="{% if u.is_admin %}revoke_admin{% else %}make_admin{% endif %}">
+                                <button type="submit" class="text-btn">{% if u.is_admin %}Revoke Admin{% else %}Make
+                                    Admin{% endif %}</button>
+                            </form>
+                            |
+                            {% endif %}
+
+                            <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}">
+                                <input type="hidden" name="action"
+                                    value="{% if u.subscription_tier == 'free' %}set_premium{% else %}set_free{% endif %}">
+                                <button type="submit" class="text-btn">{% if u.subscription_tier == 'free' %}Grant
+                                    Premium{% else %}Revoke Premium{% endif %}</button>
+                            </form>
+
+                            {% if u.id != g.user['id'] %}
+                            |
+                            <form method="POST" action="{{ url_for('views.admin_update_user', user_id=u.id) }}"
+                                onsubmit="return confirm('Are you sure?');">
+                                <input type="hidden" name="action" value="delete">
+                                <button type="submit" class="text-btn" style="color:red;">Delete</button>
+                            </form>
+                            {% endif %}
+
+                            {% if u.id == g.user['id'] %}
+                            <span style="color:#aaa; margin-left:10px;">(You)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Vouchers Tab -->
+        <div id="tab-vouchers" class="tab-content admin-section" style="margin-top:0;">
+            <h2>Voucher Management</h2>
+            <form method="POST" action="{{ url_for('views.admin_vouchers') }}" style="margin-bottom: 20px;">
+                <input type="hidden" name="action" value="create">
+                <div style="display:flex; gap:10px; align-items:flex-end;">
+                    <div><label>Code</label><br><input type="text" name="code" placeholder="VIP2025" required></div>
+                    <div><label>Usage Limit</label><br><input type="number" name="limit" value="1" min="1" required>
+                    </div>
+                    <button type="submit" class="btn-primary">Create Voucher</button>
+                </div>
+            </form>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Code</th>
+                        <th>Used / Limit</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vouchers %}
+                    <tr>
+                        <td>{{ v.id }}</td>
+                        <td><code>{{ v.code }}</code></td>
+                        <td>{{ v.times_used }} / {{ v.usage_limit }}</td>
+                        <td>{{ v.created_at }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('views.admin_vouchers') }}"
+                                onsubmit="return confirm('Delete voucher?');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="voucher_id" value="{{ v.id }}">
+                                <button type="submit" class="text-btn" style="color:red;">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">No vouchers created.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Global Settings Tab -->
+        <div id="tab-settings" class="tab-content admin-section" style="margin-top:0;">
+            <h2>Global Settings & Email Configuration</h2>
+            <form id="settings-form" method="POST" action="{{ url_for('views.admin_save_settings') }}">
+
+                <div class="form-row">
+                    <label>Log Level</label>
+                    <select name="log_level">
+                        <option value="info" {% if settings.log_level=='info' %}selected{% endif %}>Info</option>
+                        <option value="error" {% if settings.log_level=='error' %}selected{% endif %}>Error</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label>Free Channel Limit</label>
+                    <input type="number" name="free_channel_limit" value="{{ settings.free_channel_limit }}" min="1">
+                </div>
+
+                <div class="form-row">
+                    <label>Poller Interval (seconds)</label>
+                    <input type="number" name="poll_interval" value="{{ settings.poll_interval or '300' }}" min="60">
+                </div>
+
+                <h3 style="margin-top: 20px;">PayPal Configuration</h3>
+                <div class="form-row"><label>Client ID</label><input type="text" name="paypal_client_id"
+                        value="{{ settings.paypal_client_id }}"></div>
+                <div class="form-row"><label>Client Secret</label><input type="password" name="paypal_client_secret"
+                        value="{{ settings.paypal_client_secret }}"></div>
+                <div class="form-row"><label>Plan ID</label><input type="text" name="paypal_plan_id"
+                        value="{{ settings.paypal_plan_id }}"></div>
+
+                <h3 style="margin-top: 20px;">SMTP Settings</h3>
+                <div class="form-row"><label>Host</label><input type="text" name="smtp_host"
+                        value="{{ settings.smtp_host }}"></div>
+                <div class="form-row"><label>Port</label><input type="number" name="smtp_port"
+                        value="{{ settings.smtp_port }}"></div>
+                <div class="form-row"><label>User</label><input type="text" name="smtp_user"
+                        value="{{ settings.smtp_user }}"></div>
+                <div class="form-row"><label>Password</label><input type="password" name="smtp_password"
+                        placeholder="(Leave empty to keep unchanged)"></div>
+                <div class="form-row"><label>From Address</label><input type="text" name="smtp_from"
+                        value="{{ settings.smtp_from }}"></div>
+
+                <h3 style="margin-top: 20px;">Email Templates</h3>
+                <div class="form-row"><label>Register Subject</label><input type="text" name="email_subject_register"
+                        value="{{ settings.email_subject_register or 'Welcome to TiviTwitch!' }}"></div>
+                <div class="form-row"><label>Register Body</label><textarea name="email_body_register"
+                        rows="3">{{ settings.email_body_register or "Hello,\n\nYour account has been successfully created.\n\nUsername: {username}\nPassword: {password}\n\nEnjoy your stream!" }}</textarea>
+                </div>
+
+                <div class="form-row"><label>Reset Password Subject</label><input type="text" name="email_subject_reset"
+                        value="{{ settings.email_subject_reset or 'Password Reset Request' }}"></div>
+                <div class="form-row"><label>Reset Password Body (use {link})</label><textarea name="email_body_reset"
+                        rows="3">{{ settings.email_body_reset or "Hello,\n\nYour password has been reset.\n\nNew Password: {password}" }}</textarea>
+                </div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Global Settings</button>
+            </form>
+        </div>
+
+        <!-- Advanced Settings Tab -->
+        <div id="tab-advanced" class="tab-content admin-section" style="margin-top:0;">
+            <h2>Advanced Streaming Configuration</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">These settings control the low-level behavior
+                of the stream proxy. Incorrect values can cause instability.</p>
+
+            <form id="settings-form" method="POST" action="{{ url_for('views.admin_save_settings') }}">
+                <input type="hidden" name="advanced_mode" value="true">
+
+                <h3 style="margin-top: 20px;">Streamlink & HLS</h3>
+
+                <div class="form-row">
+                    <div>
+                        <label>Enable Debug Logging (HLS)</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Show verbose Streamlink logs in
+                            console. Useful for debugging discontinuities.</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="streamlink_log_enabled" {% if
+                            settings.streamlink_log_enabled=='true' %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                    </label>
+                </div>
+
+                <div class="form-row">
+                    <a href="{{ url_for('views.admin_logs') }}" target="_blank" class="text-btn"
+                        style="border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; text-decoration: none;">📄
+                        View System Logs</a>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>Disable Twitch Ads (Filter Segments)</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">If enabled, ads are filtered out
+                            (prevents 'Discontinuity' errors).</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" name="twitch_disable_ads" {% if settings.twitch_disable_ads=='true'
+                            %}checked{% endif %}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>HLS Live Edge</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">
+                            Number of segments to buffer before starting. Default: 6 (Standard) or 10 (High
+                            Stability).<br>
+                            <strong>Effect:</strong> Higher = Less Lag/Buffering, but ~20s delay on start. Lower =
+                            Faster start, more prone to lag.
+                        </div>
+                    </div>
+                    <input type="number" name="hls_live_edge" value="{{ settings.hls_live_edge or '6' }}" min="1"
+                        max="20">
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>HLS Segment Threads</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">Parallel threads for downloading
+                            segments. Default: 4</div>
+                    </div>
+                    <input type="number" name="hls_segment_threads" value="{{ settings.hls_segment_threads or '4' }}"
+                        min="1" max="10">
+                </div>
+
+                <div class="form-row">
+                    <div>
+                        <label>Ringbuffer Size</label>
+                        <div style="font-size: 0.85em; color: var(--text-secondary);">
+                            Streamlink internal memory buffer in bytes. Default: 16777216 (16MB) or 33554432 (32MB).<br>
+                            <strong>Effect:</strong> Higher = Smoother playback during network spikes. Uses more RAM per
+                            stream.
+                        </div>
+                    </div>
+                    <input type="text" name="ringbuffer_size" value="{{ settings.ringbuffer_size or '16777216' }}">
+                </div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 15px;">Save Advanced Settings</button>
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab-link");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+    </script>
+    </div>
+</body>
+
+</html>

@@ -1,8 +1,10 @@
 from flask import (
-    Blueprint, render_template, request, jsonify, current_app
+    Blueprint, render_template, request, jsonify, current_app, g, abort, redirect, url_for, flash
 )
+import datetime
 import sqlite3
 import logging
+import os
 from db import get_db, get_all_settings
 
 bp = Blueprint('views', __name__, url_prefix='')
@@ -10,15 +12,164 @@ bp = Blueprint('views', __name__, url_prefix='')
 @bp.route('/')
 def index():
     """Serves the main web interface (index.html)."""
+    """Serves the main web interface (index.html)."""
     return render_template('index.html')
+
+@bp.route('/health')
+def health():
+    """Lightweight liveness/readiness check for orchestrators (e.g. Coolify)."""
+    try:
+        get_db().execute("SELECT 1")
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        current_app.logger.error(f"[Health] DB check failed: {e}")
+        return jsonify({"status": "error", "detail": str(e)}), 503
+
+@bp.route('/premium')
+def premium_page():
+    conn = get_db()
+    settings = get_all_settings()
+    return render_template('premium.html', settings=settings)
+
+@bp.route('/admin')
+def admin_dashboard():
+    if not g.user or not g.user['is_admin']:
+        return render_template('403.html'), 403 # Basic 403 or abort(403)
+    
+    conn = get_db()
+    users = conn.execute("SELECT * FROM users").fetchall()
+    vouchers = conn.execute("SELECT * FROM vouchers ORDER BY created_at DESC").fetchall()
+    settings = get_all_settings()
+    
+    return render_template('admin.html', users=users, settings=settings, vouchers=vouchers)
+
+@bp.route('/admin/user/<int:user_id>', methods=['POST'])
+def admin_update_user(user_id):
+    if not g.user or not g.user['is_admin']:
+        abort(403)
+        
+    action = request.form.get('action')
+    conn = get_db()
+    
+    if action == 'make_admin':
+        conn.execute("UPDATE users SET is_admin = 1 WHERE id = ?", (user_id,))
+    elif action == 'revoke_admin':
+        conn.execute("UPDATE users SET is_admin = 0 WHERE id = ?", (user_id,))
+    elif action == 'set_premium':
+        conn.execute("UPDATE users SET subscription_tier = 'premium' WHERE id = ?", (user_id,))
+    elif action == 'set_free':
+        conn.execute("UPDATE users SET subscription_tier = 'free' WHERE id = ?", (user_id,))
+    elif action == 'delete':
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    
+    conn.commit()
+    flash(f'User {user_id} updated.', 'success')
+    return redirect(url_for('views.admin_dashboard'))
+
+    conn.commit()
+    flash(f'User {user_id} updated.', 'success')
+    return redirect(url_for('views.admin_dashboard'))
+
+@bp.route('/admin/logs2') # Use new route to avoid potential conflicts/cache
+def admin_logs():
+    if not g.user or not g.user['is_admin']:
+        abort(403)
+        
+    log_path = os.path.join(current_app.instance_path, 'app.log')
+    log_content = ""
+    
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                # Read last 500 lines efficiently-ish
+                # For now just read last 50KB to prevent huge loads
+                stat = os.stat(log_path)
+                if stat.st_size > 50000:
+                    f.seek(stat.st_size - 50000)
+                log_content = f.read()
+        except Exception as e:
+            log_content = f"Error reading log file: {e}"
+    else:
+        log_content = "Log file not found (yet)."
+        
+    return render_template('admin_logs.html', log_content=log_content)
+
+@bp.route('/admin/settings', methods=['POST'])
+def admin_save_settings():
+    if not g.user or not g.user['is_admin']:
+        abort(403)
+        
+    conn = get_db()
+    data = request.form
+    
+    try:
+        def save(key, value):
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+
+        # Global Settings
+        save('vod_enabled', 'true' if data.get('vod_enabled') else 'false')
+        save('vod_count_per_channel', data.get('vod_count_per_channel', '5'))
+        save('m3u_enabled', 'true' if data.get('m3u_enabled') else 'false')
+        save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
+        save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
+        save('free_channel_limit', data.get('free_channel_limit', '3'))
+        save('poll_interval', data.get('poll_interval', '300'))
+        
+        new_level = data.get('log_level', 'info')
+        save('log_level', new_level)
+        
+        # PayPal
+        save('paypal_client_id', data.get('paypal_client_id', ''))
+        save('paypal_client_secret', data.get('paypal_client_secret', ''))
+        save('paypal_plan_id', data.get('paypal_plan_id', ''))
+        
+        # SMTP
+        save('smtp_host', data.get('smtp_host', ''))
+        save('smtp_port', data.get('smtp_port', '587'))
+        save('smtp_user', data.get('smtp_user', ''))
+        # Only update password if provided
+        if data.get('smtp_password'):
+            save('smtp_password', data.get('smtp_password', ''))
+            
+        save('smtp_from', data.get('smtp_from', ''))
+        save('email_subject_register', data.get('email_subject_register', ''))
+        save('email_body_register', data.get('email_body_register', ''))
+        save('email_subject_reset', data.get('email_subject_reset', ''))
+        save('email_subject_reset', data.get('email_subject_reset', ''))
+        save('email_body_reset', data.get('email_body_reset', ''))
+
+        # Advanced Settings
+        if data.get('advanced_mode') == 'true':
+            save('streamlink_log_enabled', 'true' if data.get('streamlink_log_enabled') else 'false')
+            save('twitch_disable_ads', 'true' if data.get('twitch_disable_ads') else 'false')
+            save('hls_live_edge', data.get('hls_live_edge', '6'))
+            save('hls_segment_threads', data.get('hls_segment_threads', '4'))
+            save('ringbuffer_size', data.get('ringbuffer_size', '16777216'))
+
+        conn.commit()
+        
+        # Apply Log Level
+        if new_level == 'error':
+            current_app.logger.setLevel(logging.ERROR)
+        else:
+            current_app.logger.setLevel(logging.INFO)
+            
+        flash('Global settings saved.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error saving settings: {e}', 'error')
+        
+    return redirect(url_for('views.admin_dashboard'))
 
 # --- API Endpoints for the Web Interface ---
 
 @bp.route('/api/channels', methods=['GET'])
 def get_channels():
     conn = get_db()
-    channels = conn.execute('SELECT * FROM channels ORDER BY login_name').fetchall()
-    current_app.logger.info("[WebAPI] GET /api/channels (Loading channels)")
+    # Filter channels by Key user
+    channels = conn.execute('SELECT * FROM channels WHERE user_id = ? ORDER BY login_name', (g.user['id'],)).fetchall()
+    current_app.logger.info(f"[WebAPI] GET /api/channels for user {g.user['username']}")
     return jsonify([dict(ix) for ix in channels])
 
 @bp.route('/api/channels', methods=['POST'])
@@ -29,24 +180,33 @@ def add_channel():
         return jsonify({'error': 'Channel name missing'}), 400
         
     login_name = new_channel.strip().lower()
-    current_app.logger.info(f"[WebAPI] POST /api/channels: Attempting to add channel '{login_name}'.")
+    current_app.logger.info(f"[WebAPI] POST /api/channels: User {g.user['username']} adding '{login_name}'.")
     conn = get_db()
+    
+    # Check Limit for Free Users (Admins bypass)
+    if not g.user['is_admin'] and g.user['subscription_tier'] == 'free':
+        from db import get_setting
+        limit = int(get_setting('free_channel_limit', '3'))
+        count = conn.execute("SELECT COUNT(*) FROM channels WHERE user_id = ?", (g.user['id'],)).fetchone()[0]
+        if count >= limit:
+             current_app.logger.warning(f"[WebAPI] User {g.user['username']} hit free limit ({limit}).")
+             return jsonify({'error': f'Free plan limit reached ({limit} channels). Upgrade to Premium!'}), 403
+
     try:
-        conn.execute('INSERT INTO channels (login_name) VALUES (?)', (login_name,))
+        conn.execute('INSERT INTO channels (login_name, user_id) VALUES (?, ?)', (login_name, g.user['id']))
         conn.commit()
     except sqlite3.IntegrityError:
-        current_app.logger.warning(f"[WebAPI] POST /api/channels: Channel '{login_name}' already exists.")
+        current_app.logger.warning(f"[WebAPI] Channel '{login_name}' already exists for user {g.user['username']}.")
         return jsonify({'error': 'Channel already exists'}), 409
     
+    # Add to live_streams if not present (global list)
     try:
-        new_channel_row = conn.execute('SELECT id FROM channels WHERE login_name = ?', (login_name,)).fetchone()
-        if new_channel_row:
-            current_app.logger.info(f"[WebAPI] Adding channel '{login_name}' (ID: {new_channel_row['id']}) to live_streams table.")
-            conn.execute(
-                "INSERT OR IGNORE INTO live_streams (id, login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?, ?)",
-                (new_channel_row['id'], login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
-            )
-            conn.commit()
+        current_app.logger.info(f"[WebAPI] Ensuring '{login_name}' is in live_streams table.")
+        conn.execute(
+            "INSERT OR IGNORE INTO live_streams (login_name, epg_channel_id, display_name, is_live) VALUES (?, ?, ?, ?)",
+            (login_name, f"{login_name}.tv", f"[Offline] {login_name.title()}", 0)
+        )
+        conn.commit()
     except Exception as e:
         current_app.logger.error(f"[WebAPI] Error adding to live_streams table: {e}")
     finally:
@@ -55,32 +215,43 @@ def add_channel():
 
 @bp.route('/api/channels/<int:channel_id>', methods=['DELETE'])
 def delete_channel(channel_id):
-    current_app.logger.info(f"[WebAPI] DELETE /api/channels/{channel_id}: Attempting to delete channel.")
+    current_app.logger.info(f"[WebAPI] DELETE /api/channels/{channel_id} for user {g.user['username']}.")
     conn = get_db()
-    channel = conn.execute('SELECT login_name FROM channels WHERE id = ?', (channel_id,)).fetchone()
-    if channel:
-        current_app.logger.info(f"[WebAPI] Deleting VODs for channel '{channel['login_name']}'.")
-        conn.execute('DELETE FROM vod_streams WHERE channel_login = ?', (channel['login_name'],))
     
-    conn.execute('DELETE FROM channels WHERE id = ?', (channel_id,))
-    conn.execute('DELETE FROM live_streams WHERE id = ?', (channel_id,))
-    
+    # We only delete the user's mapping. The poller will clean up live_streams if no one watches it anymore.
+    conn.execute('DELETE FROM channels WHERE id = ? AND user_id = ?', (channel_id, g.user['id']))
     conn.commit()
+    
     current_app.logger.info(f"[WebAPI] Channel {channel_id} deleted successfully.")
     return jsonify({'success': 'Channel deleted'}), 200
 
 @bp.route('/api/settings', methods=['GET'])
 def api_get_settings():
-    """Loads settings for the Web UI."""
+    """Loads settings for the Web UI. Merges global settings with user-specific keys."""
     settings = get_all_settings()
-    current_app.logger.info(f"[WebAPI] GET /api/settings: Loading settings.")
+    
+    # Inject User's Twitch Credentials
+    # (Client Secret is never sent back for security, just like global)
+    settings['twitch_client_id'] = g.user['client_id'] or ""
+    settings['twitch_client_secret'] = "******" if g.user['client_secret'] else ""
+    settings['twitch_auth_token'] = "******" if g.user['auth_token'] else ""
+    
+    current_app.logger.info(f"[WebAPI] GET /api/settings: Loading settings for {g.user['username']}.")
     return jsonify(settings)
 
 @bp.route('/api/settings', methods=['POST'])
 def api_save_settings():
     """Saves settings from the Web UI."""
     data = request.json
-    current_app.logger.info(f"[WebAPI] POST /api/settings: Saving settings: {data}")
+    
+    # Secure logging: mask sensitive fields
+    log_data = data.copy()
+    if 'twitch_client_secret' in log_data and log_data['twitch_client_secret']:
+        log_data['twitch_client_secret'] = '******'
+    if 'twitch_auth_token' in log_data and log_data['twitch_auth_token']:
+        log_data['twitch_auth_token'] = '******'
+        
+    current_app.logger.info(f"[WebAPI] POST /api/settings: Saving settings: {log_data}")
     conn = get_db()
     
     new_log_level_str = data.get('log_level', 'info')
@@ -89,29 +260,49 @@ def api_save_settings():
         def save(key, value):
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
-        # Save all settings
-        save('vod_enabled', str(data.get('vod_enabled', 'false')).lower())
-        save('twitch_client_id', data.get('twitch_client_id', ''))
-        save('vod_count_per_channel', str(data.get('vod_count_per_channel', '5')))
-        save('m3u_enabled', str(data.get('m3u_enabled', 'false')).lower())
-        save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
-        save('log_level', new_log_level_str)
+        if g.user['is_admin']:
+             # Admins can still use this API to set globs if they want (legacy support), 
+             # but ideally they use the Admin Panel. 
+             # We let them save everything for now.
+             save('vod_enabled', str(data.get('vod_enabled', 'false')).lower())
+             save('vod_count_per_channel', str(data.get('vod_count_per_channel', '5')))
+             save('m3u_enabled', str(data.get('m3u_enabled', 'false')).lower())
+             save('live_stream_mode', data.get('live_stream_mode', 'proxy'))
+             save('log_level', new_log_level_str)
         
-        if data.get('twitch_client_secret'):
-            current_app.logger.info(f"[WebAPI] A new Twitch secret is being saved.")
-            save('twitch_client_secret', data.get('twitch_client_secret'))
+        # 2. Save User-Specific Settings (Dynamically)
+        user_client_id = data.get('twitch_client_id', '').strip()
+        user_client_secret = data.get('twitch_client_secret')
+        user_auth_token = data.get('twitch_auth_token') # Raw value
+
+        fields = ["client_id = ?"]
+        params = [user_client_id]
+
+        # Only update secret if provided (even empty) and not hidden mask
+        if user_client_secret is not None and user_client_secret != "******":
+            fields.append("client_secret = ?")
+            params.append(user_client_secret)
+
+        # Only update token if provided (even empty) and not hidden mask
+        if user_auth_token is not None and user_auth_token != "******":
+             fields.append("auth_token = ?")
+             params.append(user_auth_token.strip())
+
+        params.append(g.user['id'])
+        query = f"UPDATE users SET {', '.join(fields)} WHERE id = ?"
+        
+        conn.execute(query, params)
+        current_app.logger.info(f"[WebAPI] Updated settings for user {g.user['username']}.")
             
         conn.commit()
         
         # *** BUG FIX & FEATURE: Dynamically adjust running app's log level ***
         if new_log_level_str == 'error':
             current_app.logger.setLevel(logging.ERROR)
-            # Use .logger.warning() to ensure this message always appears
             current_app.logger.warning("Log level set to ERROR at runtime.")
         else:
             current_app.logger.setLevel(logging.INFO)
             current_app.logger.info("Log level set to INFO at runtime.")
-        # Note: The poller will only pick up the new level on its next restart.
             
     except Exception as e:
         conn.rollback()
@@ -122,3 +313,88 @@ def api_save_settings():
         
     current_app.logger.info(f"[WebAPI] Settings saved successfully.")
     return jsonify({'success': 'Settings saved!'}), 200
+
+@bp.route('/api/webhooks/paypal', methods=['POST'])
+def paypal_webhook():
+    """Receives IPN/Webhook from PayPal."""
+    # This is a basic skeleton. 
+    # In real world: verify signature, check payment_status=Completed.
+    
+    data = request.form # IPN usually comes as form data
+    current_app.logger.info(f"[PayPal] Received webhook: {data}")
+    
+    # Example logic:
+    # custom field often contains user_id
+    user_id = data.get('custom')
+    txn_type = data.get('txn_type')
+    
+    if user_id and txn_type == 'subscr_signup':
+        conn = get_db()
+        conn.execute("UPDATE users SET subscription_tier = 'premium', paypal_sub_id = ? WHERE id = ?", 
+                     (data.get('subscr_id'), user_id))
+        conn.commit()
+        current_app.logger.info(f"[PayPal] User {user_id} upgraded to Premium.")
+        
+    return "OK", 200
+
+# --- Voucher System Endpoints ---
+
+@bp.route('/admin/vouchers', methods=['GET', 'POST'])
+def admin_vouchers():
+    if not g.user or not g.user['is_admin']:
+        abort(403)
+        
+    conn = get_db()
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'create':
+            code = request.form.get('code')
+            limit = request.form.get('limit')
+            if code and limit:
+                try:
+                    conn.execute("INSERT INTO vouchers (code, usage_limit) VALUES (?, ?)", (code.strip(), limit))
+                    conn.commit()
+                    flash(f'Voucher {code} created.', 'success')
+                except sqlite3.IntegrityError:
+                    flash('Voucher code already exists.', 'error')
+        elif action == 'delete':
+            voucher_id = request.form.get('voucher_id')
+            conn.execute("DELETE FROM vouchers WHERE id = ?", (voucher_id,))
+            conn.commit()
+            flash('Voucher deleted.', 'success')
+            
+        return redirect(url_for('views.admin_dashboard')) # Or stay on same tab? JS handles tab.
+        
+    # Just render admin page, logic is handled there mostly. This endpoint might not be used for listing if everything is in admin_dashboard
+    return redirect(url_for('views.admin_dashboard'))
+
+
+@bp.route('/api/redeem_coupon', methods=['POST'])
+def redeem_coupon():
+    if not g.user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    code = request.json.get('code')
+    if not code:
+        return jsonify({'error': 'Code missing'}), 400
+        
+    conn = get_db()
+    voucher = conn.execute("SELECT * FROM vouchers WHERE code = ?", (code.strip(),)).fetchone()
+    
+    if not voucher:
+        return jsonify({'error': 'Invalid code'}), 404
+        
+    if voucher['times_used'] >= voucher['usage_limit']:
+        return jsonify({'error': 'Code usage limit reached'}), 400
+        
+    # Apply Premium
+    try:
+        conn.execute("UPDATE users SET subscription_tier = 'premium' WHERE id = ?", (g.user['id'],))
+        conn.execute("UPDATE vouchers SET times_used = times_used + 1 WHERE id = ?", (voucher['id'],))
+        conn.commit()
+        current_app.logger.info(f"[Voucher] User {g.user['username']} redeemed {code}.")
+        return jsonify({'success': 'Premium activated!'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500

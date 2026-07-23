@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+
+# Runtime data (created by init_db.py / the app at startup)
+instance/*.db
+instance/*.log
+!instance/.gitkeep
+
+.env

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>System Logs - TiviTwitch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            height: 600px;
+            overflow-y: scroll;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>System Logs</h1>
+            <a href="{{ url_for('views.admin_dashboard') }}">Back to Admin</a>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <button onclick="window.location.reload();" class="btn-primary">Refresh Logs</button>
+            <span style="margin-left: 10px; color: #666; font-size: 0.9em;">(Showing last ~50KB)</span>
+        </div>
+
+        <div class="log-container" id="logBox">
+{{ log_content }}
+        </div>
+        
+        <script>
+            // Auto scroll to bottom
+            var logBox = document.getElementById("logBox");
+            logBox.scrollTop = logBox.scrollHeight;
+        </script>
+    </div>
+</body>
+</html>

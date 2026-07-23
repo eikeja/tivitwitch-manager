@@ -13,7 +13,10 @@ def get_startup_log_level():
     """Reads the log level from the DB *before* the app is running."""
     level_str = 'info' # Default
     try:
-        conn = sqlite3.connect('/data/channels.db')
+        # Use generated instance path
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(base_dir, 'instance', 'channels.db')
+        conn = sqlite3.connect(db_path)
         row = conn.execute("SELECT value FROM settings WHERE key = 'log_level'").fetchone()
         conn.close()
         if row and row[0] == 'error':
@@ -34,18 +37,46 @@ def create_app():
     log_level = get_startup_log_level()
     
     app.logger.setLevel(log_level)
+    
+    # 1. Stream Handler (Stdout)
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s [Flask] [%(filename)s:%(lineno)d] - %(message)s'
     ))
     app.logger.addHandler(stream_handler)
+    
+    # 2. File Handler (Rotating)
+    try:
+        from logging.handlers import RotatingFileHandler
+        # Ensure instance dir exists
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        log_path = os.path.join(base_dir, 'instance', 'app.log')
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        
+        file_handler = RotatingFileHandler(log_path, maxBytes=5*1024*1024, backupCount=1)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] - %(message)s'
+        ))
+        file_handler.setLevel(log_level)
+        app.logger.addHandler(file_handler)
+        app.logger.info(f"File logging enabled: {log_path}")
+    except Exception as e:
+        print(f"[Boot-Error] Failed to setup file logging: {e}")
+
     app.logger.warning("-------------------------------------")
     app.logger.warning(f"Flask application starting... (Log Level: {logging.getLevelName(log_level)})")
     app.logger.warning("-------------------------------------")
 
     # --- Configuration ---
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-key-please-change')
-    
+    secret_key = os.environ.get('SECRET_KEY')
+    if not secret_key:
+        secret_key = 'default-dev-key-please-change'
+        app.logger.warning(
+            "[Config] SECRET_KEY is not set! Using an insecure default. "
+            "Set the SECRET_KEY environment variable in production (e.g. in Coolify)."
+        )
+    app.config['SECRET_KEY'] = secret_key
+
     app.logger.info("Gevent monkey-patching applied.")
 
     # --- Register Blueprints ---

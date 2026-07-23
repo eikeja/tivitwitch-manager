@@ -12,7 +12,8 @@ import logging
 import sys
 
 # --- Configuration ---
-DB_PATH = '/data/channels.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'instance', 'channels.db')
 POLL_INTERVAL = 60 # seconds
 
 # --- Helper function (boot time only) ---
@@ -52,23 +53,23 @@ TWITCH_AUTH_URL = 'https://id.twitch.tv/oauth2/token'
 TWITCH_API_URL_USERS = 'https://api.twitch.tv/helix/users'
 TWITCH_API_URL_VIDEOS = 'https://api.twitch.tv/helix/videos'
 TWITCH_API_URL_STREAMS = 'https://api.twitch.tv/helix/streams'
-current_app_token = None
-token_expires_at = 0
+
+# Cache for tokens: Key=(client_id, client_secret), Value={'token': str, 'expires': float}
+token_cache = {}
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-def get_settings():
+def get_base_settings():
+    """Fetches global settings that are not user-specific."""
     conn = get_db_connection()
     settings_raw = conn.execute('SELECT key, value FROM settings').fetchall()
     conn.close()
     settings = {row['key']: row['value'] for row in settings_raw}
     
     settings.setdefault('vod_enabled', 'false')
-    settings.setdefault('twitch_client_id', '')
-    settings.setdefault('twitch_client_secret', '')
     settings.setdefault('vod_count_per_channel', '5')
     
     settings['vod_enabled'] = settings['vod_enabled'] == 'true'
@@ -76,17 +77,26 @@ def get_settings():
         settings['vod_count_per_channel'] = int(settings['vod_count_per_channel'])
     except ValueError:
         settings['vod_count_per_channel'] = 5
+        
+    try:
+        settings['poll_interval'] = int(settings.get('poll_interval', '300')) # Default 300s (5m)
+    except ValueError:
+        settings['poll_interval'] = 300
     
-    logging.info(f"Poller settings loaded: VODs_Enabled={settings['vod_enabled']}, VOD_Count={settings['vod_count_per_channel']}, ClientID_Set={bool(settings['twitch_client_id'])})")
     return settings
 
 def get_twitch_app_token(client_id, client_secret):
-    global current_app_token, token_expires_at
+    """Fetches a token for a specific ID/Secret pair. Caches result."""
+    global token_cache
     
-    if current_app_token and time.time() < token_expires_at:
-        return current_app_token
+    cache_key = (client_id, client_secret)
+    cached = token_cache.get(cache_key)
+    
+    # Check cache validity
+    if cached and time.time() < cached['expires']:
+        return cached['token']
 
-    logging.info("[Poller-VOD] No valid token. Requesting new Twitch App Access Token...")
+    logging.info(f"[Poller-Auth] Requesting new token for Client ID {client_id[:4]}...")
     try:
         response = requests.post(
             TWITCH_AUTH_URL,
@@ -100,13 +110,14 @@ def get_twitch_app_token(client_id, client_secret):
         response.raise_for_status()
         data = response.json()
         
-        current_app_token = data['access_token']
-        token_expires_at = time.time() + data['expires_in'] - 60
+        token = data['access_token']
+        expires = time.time() + data['expires_in'] - 60
         
-        logging.info("[Poller-VOD] Successfully acquired new token.")
-        return current_app_token
+        token_cache[cache_key] = {'token': token, 'expires': expires}
+        logging.info(f"[Poller-Auth] Token acquired for Client ID {client_id[:4]}...")
+        return token
     except Exception as e:
-        logging.error(f"[Poller-VOD] ERROR: Failed to get Twitch token: {e}")
+        logging.error(f"[Poller-Auth] ERROR: Failed to get Twitch token for ID {client_id[:4]}...: {e}")
         return None
 
 def get_user_ids(token, client_id, login_names):
@@ -116,7 +127,6 @@ def get_user_ids(token, client_id, login_names):
     user_id_map = {}
     for i in range(0, len(login_names), 100):
         chunk = login_names[i:i+100]
-        logging.info(f"[Poller-VOD] Fetching User IDs for {len(chunk)} channels...")
         try:
             headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
             params = [('login', name) for name in chunk]
@@ -129,9 +139,8 @@ def get_user_ids(token, client_id, login_names):
                 user_id_map[user['login']] = user['id']
             
         except Exception as e:
-            logging.error(f"[Poller-VOD] ERROR: Failed to get User IDs: {e}")
+            logging.error(f"[Poller-API] ERROR: Failed to get Twitch User IDs: {e}")
     
-    logging.info(f"[Poller-VOD] Found {len(user_id_map)} User IDs out of {len(login_names)} requested.")
     return user_id_map
 
 def get_channel_vods(token, client_id, user_id, vod_count):
@@ -139,7 +148,8 @@ def get_channel_vods(token, client_id, user_id, vod_count):
         headers = {'Client-ID': client_id, 'Authorization': f'Bearer {token}'}
         params = {
             'user_id': user_id,
-            'type': 'archive', 
+            'type': 'all', 
+            'sort': 'time',
             'first': vod_count
         }
         
@@ -147,14 +157,13 @@ def get_channel_vods(token, client_id, user_id, vod_count):
         response.raise_for_status()
         return response.json().get('data', [])
     except Exception as e:
-        logging.error(f"[Poller-VOD] ERROR: Failed to get VODs for user {user_id}: {e}")
+        logging.error(f"[Poller-API] ERROR: Failed to get VODs for {user_id}: {e}")
         return []
 
 def get_live_streams_info(token, client_id, user_id_map):
     if not user_id_map:
         return {}
         
-    logging.info(f"[Poller-Live] Fetching stream info for {len(user_id_map)} channels...")
     live_stream_map = {}
     user_ids = list(user_id_map.values())
     
@@ -176,116 +185,96 @@ def get_live_streams_info(token, client_id, user_id_map):
                 }
                 
     except Exception as e:
-        logging.error(f"[Poller-Live] ERROR: Failed to get stream info: {e}")
+        logging.error(f"[Poller-API] ERROR: Failed to get stream info: {e}")
     
-    logging.info(f"[Poller-Live] {len(live_stream_map)} channels are live.")
     return live_stream_map
 
 # --- Main Poller Function ---
 def update_database():
-    logging.info("[Poller] Starting database update cycle...")
+    logging.info("[Poller] Starting update cycle...")
     
-    settings = get_settings()
+    settings = get_base_settings()
     conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
-        channels = conn.execute('SELECT id, login_name FROM channels').fetchall()
-        login_names = [row['login_name'] for row in channels]
+        # 1. Get all users who have credentials
+        users_with_creds = conn.execute("SELECT id, username, client_id, client_secret FROM users WHERE client_id IS NOT NULL AND client_secret IS NOT NULL").fetchall()
         
-        token = None
-        user_id_map = {}
-        if (settings['vod_enabled'] or len(channels) > 0) and settings['twitch_client_id'] and settings['twitch_client_secret']:
-            token = get_twitch_app_token(settings['twitch_client_id'], settings['twitch_client_secret'])
-            if token:
-                user_id_map = get_user_ids(token, settings['twitch_client_id'], login_names)
+        all_monitored_logins = set()
         
-        logging.info(f"[Poller-Live] Checking status for {len(login_names)} live channels...")
-        live_stream_info_map = {}
-        if token and user_id_map:
+        # 2. Iterate each user and poll
+        for user in users_with_creds:
+            uid = user['id']
+            username = user['username']
+            c_id = user['client_id']
+            c_secret = user['client_secret']
+            
+            # Fetch channels for this user
+            user_channels = conn.execute("SELECT login_name FROM channels WHERE user_id = ?", (uid,)).fetchall()
+            login_names = [row['login_name'] for row in user_channels]
+            
+            if not login_names:
+                continue
+
+            all_monitored_logins.update(login_names)
+            
+            logging.info(f"[Poller] Processing {len(login_names)} channels for user '{username}'...")
+            
+            # Authenticate
+            token = get_twitch_app_token(c_id, c_secret)
+            if not token:
+                logging.warning(f"[Poller] Skipping user '{username}': Could not auth.")
+                continue
+                
+            # Resolve IDs
+            user_id_map = get_user_ids(token, c_id, login_names)
+            
+            # Poll Live Status
+            live_data = get_live_streams_info(token, c_id, user_id_map)
+            
+            # Update Live Streams Table (Shared Cache)
+            # We iterate through this user's channels only
             user_id_to_login = {v: k for k, v in user_id_map.items()}
-            live_stream_api_data = get_live_streams_info(token, settings['twitch_client_id'], user_id_map)
-            for user_id, info in live_stream_api_data.items():
-                login_name = user_id_to_login.get(user_id)
-                if login_name:
-                    live_stream_info_map[login_name] = info
-
-        live_count = len(live_stream_info_map)
-        
-        for channel in channels:
-            login_name = channel['login_name']
-            epg_id = f"{login_name}.tv"
-            stream_info = live_stream_info_map.get(login_name)
             
-            if stream_info: # Channel is LIVE
-                display_name, is_live, stream_title, stream_game = login_name.title(), True, stream_info['title'], stream_info['game']
-            else: # Channel is OFFLINE
-                display_name, is_live, stream_title, stream_game = f"[Offline] {login_name.title()}", False, None, None
-            
-            cursor.execute(
-                """INSERT OR REPLACE INTO live_streams 
-                   (id, login_name, epg_channel_id, display_name, is_live, stream_title, stream_game) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (channel['id'], login_name, epg_id, display_name, is_live, stream_title, stream_game)
-            )
-
-        logging.info(f"[Poller-Live] Live check complete. {live_count} channels are live.")
-
-        # --- VOD Check ---
-        if settings['vod_enabled'] and token:
-            logging.info("[Poller-VOD] VOD feature is enabled. Fetching VODs...")
-            db_vods_raw = cursor.execute('SELECT vod_id, channel_login FROM vod_streams').fetchall()
-            db_vod_map = {row['channel_login']: set() for row in db_vods_raw}
-            for row in db_vods_raw:
-                db_vod_map[row['channel_login']].add(row['vod_id'])
-            logging.info(f"[Poller-VOD] {len(db_vods_raw)} VODs are currently in the DB.")
-
-            for login_name, user_id in user_id_map.items():
-                vods = get_channel_vods(token, settings['twitch_client_id'], user_id, settings['vod_count_per_channel'])
+            for login_name in login_names:
+                twitch_user_id = user_id_map.get(login_name)
+                stream_info = live_data.get(twitch_user_id) if twitch_user_id else None
                 
-                if vods:
-                    vod_category = f"{login_name.title()} VODs"
-                    api_vod_ids_this_channel = set()
-                    new_vod_count = 0
-                    
-                    for vod in vods:
-                        api_vod_ids_this_channel.add(vod['id'])
-                        if login_name not in db_vod_map or vod['id'] not in db_vod_map[login_name]:
-                            new_vod_count += 1
-                        
-                        thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
-                        cursor.execute(
-                            "INSERT OR REPLACE INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url) VALUES (?, ?, ?, ?, ?, ?)",
-                            (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail)
-                        )
-                    
-                    if new_vod_count > 0:
-                        logging.info(f"[Poller-VOD] Added {new_vod_count} new VODs for {login_name}.")
-                        
-                    db_vods_this_channel = db_vod_map.get(login_name, set())
-                    vods_to_delete = db_vods_this_channel - api_vod_ids_this_channel
-                    
-                    if vods_to_delete:
-                        logging.info(f"[Poller-VOD] Pruning {len(vods_to_delete)} old VODs for {login_name}.")
-                        for old_vod_id in vods_to_delete:
-                            cursor.execute("DELETE FROM vod_streams WHERE vod_id = ?", (old_vod_id,))
+                epg_id = f"{login_name}.tv"
                 
-                gevent.sleep(0.1) 
-            
-            removed_channels = set(db_vod_map.keys()) - set(user_id_map.keys())
-            if removed_channels:
-                 logging.info(f"[Poller-VOD] Pruning VODs for removed channels: {removed_channels}")
-                 for removed_channel in removed_channels:
-                     cursor.execute("DELETE FROM vod_streams WHERE channel_login = ?", (removed_channel,))
-        
-        elif settings['vod_enabled']:
-            logging.warning("[Poller-VOD] VODs are enabled, but Client ID or Secret are missing. Skipping VOD fetch.")
+                if stream_info: # LIVE
+                    display_name, is_live, stream_title, stream_game = login_name.title(), True, stream_info['title'], stream_info['game']
+                else: # OFFLINE
+                    display_name, is_live, stream_title, stream_game = f"[Offline] {login_name.title()}", False, None, None
+                
+                # We use INSERT OR REPLACE. Since multiple users might watch same channel,
+                # last one wins. This is fine as data should be identical.
+                cursor.execute(
+                    """INSERT OR REPLACE INTO live_streams 
+                       (login_name, epg_channel_id, display_name, is_live, stream_title, stream_game) 
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (login_name, epg_id, display_name, is_live, stream_title, stream_game)
+                )
+
+            # Poll VODs (if enabled)
+            if settings['vod_enabled']:
+                process_vods(cursor, token, c_id, login_names, user_id_map, settings['vod_count_per_channel'])
+                
+                
+            # Yield to other greenlets
+            gevent.sleep(0.5) # Increased from 0.1s to reduce CPU load
+
+        # 3. Garbage Collection
+        # streams that are in live_streams but NOT in all_monitored_logins should be removed
+        if all_monitored_logins:
+            placeholders = ','.join(['?'] * len(all_monitored_logins))
+            cursor.execute(f"DELETE FROM live_streams WHERE login_name NOT IN ({placeholders})", list(all_monitored_logins))
         else:
-             logging.info("[Poller-VOD] VOD feature is disabled. Skipping.")
-             cursor.execute("DELETE FROM vod_streams")
+            cursor.execute("DELETE FROM live_streams")
 
         conn.commit()
-        logging.info("[Poller] Database update successful.")
+        logging.info("[Poller] Update cycle complete.")
 
     except Exception as e:
         logging.critical(f"[Poller] FATAL ERROR during update cycle: {e}")
@@ -293,6 +282,64 @@ def update_database():
     finally:
         conn.close()
 
+def parse_duration(duration_str):
+    """Parses Twitch duration string (e.g., '1h30m5s') into seconds."""
+    if not duration_str: return 0
+    total_seconds = 0
+    import re
+    # Match groups: 1h, 30m, 5s
+    match = re.match(r'((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?', duration_str)
+    if match:
+        h = int(match.group('h') or 0)
+        m = int(match.group('m') or 0)
+        s = int(match.group('s') or 0)
+        total_seconds = h * 3600 + m * 60 + s
+    return total_seconds
+
+def process_vods(cursor, token, client_id, login_names, user_id_map, vod_count):
+    """Helper to process VODs for a specific user session."""
+    
+    for login_name in login_names:
+        user_id = user_id_map.get(login_name)
+        if not user_id: continue
+        
+        vods = get_channel_vods(token, client_id, user_id, vod_count)
+        if not vods: continue
+
+        vod_category = f"{login_name.title()} VODs"
+        
+        gevent.sleep(0.1) # Yield slightly for each user VODs processing
+        
+        for vod in vods:
+            thumbnail = vod['thumbnail_url'].replace('%{width}', '640').replace('%{height}', '360')
+            duration_seconds = parse_duration(vod.get('duration', '0s'))
+            
+            # Use UPSERT to preserve the 'id' (Primary Key) if the VOD already exists.
+            # strict=True on the DB init is not set for UNIQUE(vod_id, channel_login), 
+            # but init_db.py defines UNIQUE(vod_id, channel_login).
+            cursor.execute(
+                """INSERT INTO vod_streams (vod_id, channel_login, title, created_at, category, thumbnail_url, duration) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(vod_id, channel_login) DO UPDATE SET
+                   title=excluded.title,
+                   created_at=excluded.created_at,
+                   category=excluded.category,
+                   thumbnail_url=excluded.thumbnail_url,
+                   duration=excluded.duration
+                """,
+                (vod['id'], login_name, vod['title'], vod['created_at'], vod_category, thumbnail, duration_seconds)
+            )
+
+        # Cleanup: Remove VODs for this channel that were NOT in the fetched list
+        valid_vod_ids = [v['id'] for v in vods]
+        if valid_vod_ids:
+            placeholders = ','.join(['?'] * len(valid_vod_ids))
+            # We need to pass the login_name AND the list of valid IDs
+            params = [login_name] + valid_vod_ids
+            cursor.execute(f"DELETE FROM vod_streams WHERE channel_login = ? AND vod_id NOT IN ({placeholders})", params)
+            logging.info(f"[Poller-VOD] Cleaned up VODs for {login_name}. Kept {len(valid_vod_ids)} VODs.")
+
+            
 # --- Main run loop ---
 if __name__ == "__main__":
     gevent.sleep(5) # Wait for DB to be ready
@@ -302,5 +349,11 @@ if __name__ == "__main__":
         except Exception as e:
             logging.critical(f"[Poller] Unhandled exception in main loop: {e}")
             
-        logging.info(f"Next poll run in {POLL_INTERVAL} seconds.")
-        gevent.sleep(POLL_INTERVAL)
+        try:
+            settings = get_base_settings()
+            poll_wait = settings.get('poll_interval', 300)
+        except Exception:
+            poll_wait = 300
+            
+        logging.info(f"Next poll run in {poll_wait} seconds.")
+        gevent.sleep(poll_wait)
